@@ -114,6 +114,13 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
     data,
   });
 
+  this.notificationsGateway.emitTaskUpdated({
+    taskId: updatedTask.id,
+    status: updatedTask.status,
+    assigneeId: updatedTask.assigneeId,
+    title: updatedTask.title,
+  });
+
 
   if (data.status && data.status !== task.status) {
     await this.prisma.activityLog.create({
@@ -196,6 +203,8 @@ async assignTask(userId: string, taskId: string, assigneeId: string) {
   }
 
   try {
+    
+ 
     // 1. Update task
     const updatedTask = await this.prisma.task.update({
       where: { id: taskId },
@@ -203,6 +212,7 @@ async assignTask(userId: string, taskId: string, assigneeId: string) {
         assigneeId,
       },
     });
+
 
     // 2. Create DB notification
     const notification = await this.prisma.notification.create({
@@ -236,9 +246,10 @@ async getMyTasks(
   limit: number = 10,
 ) {
 
-  const where: any = {
-    assigneeId: userId,
-  };
+const where: any = {
+  assigneeId: userId,
+};
+
 
   if (status) {
     where.status = status as TaskStatus;
@@ -254,14 +265,7 @@ const total = await this.prisma.task.count({
   where,
 });
 
-const tasks = await this.prisma.task.findMany({
-  where,
-  include: {
-    project: true,
-  },
-  skip,
-  take: limit,
-});
+const tasks = await this.prisma.task.findMany();
 
 return {
   data: tasks,

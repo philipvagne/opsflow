@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import toast from "react-hot-toast";
 
 export const createSocket = (token) => {
   const socket = io("http://localhost:3000", {
@@ -12,7 +13,7 @@ export const createSocket = (token) => {
   });
 
   socket.on("notification", (data) => {
-    console.log("🔔 Notification received:", data);
+    toast.success(data.message);
   });
 
   return socket;
