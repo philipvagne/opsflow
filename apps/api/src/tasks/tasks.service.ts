@@ -2,10 +2,14 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskStatus } from '@prisma/client';
 import { UpdateTaskDto } from './dto/update-task.dto';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+  private prisma: PrismaService,
+  private notificationsGateway: NotificationsGateway,
+) {}
 
  async createTask(
   orgId: string,
@@ -191,28 +195,37 @@ async assignTask(userId: string, taskId: string, assigneeId: string) {
     throw new ForbiddenException('Not allowed');
   }
 
-try {
-  const updatedTask = await this.prisma.task.update({
-    where: { id: taskId },
-    data: {
-      assigneeId,
-    },
-  });
+  try {
+    // 1. Update task
+    const updatedTask = await this.prisma.task.update({
+      where: { id: taskId },
+      data: {
+        assigneeId,
+      },
+    });
 
-  await this.prisma.notification.create({
-    data: {
+    // 2. Create DB notification
+    const notification = await this.prisma.notification.create({
+      data: {
+        type: 'TASK_ASSIGNED',
+        message: `You were assigned to "${task.title}"`,
+        userId: assigneeId,
+        taskId: task.id,
+      },
+    });
+
+    this.notificationsGateway.sendNotification(assigneeId, {
       type: 'TASK_ASSIGNED',
       message: `You were assigned to "${task.title}"`,
-      userId: assigneeId,
       taskId: task.id,
-    },
-  });
+      notificationId: notification.id,
+    });
 
-  return updatedTask;
-} catch (error) {
-  console.log('ASSIGN TASK ERROR:', error);
-  throw error;
-}
+    return updatedTask;
+  } catch (error) {
+    console.log('ASSIGN TASK ERROR:', error);
+    throw error;
+  }
 }
 
 async getMyTasks(
@@ -330,6 +343,42 @@ async getNotifications(userId: string) {
   return this.prisma.notification.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
+  });
+}
+
+async markNotificationAsRead(
+  userId: string,
+  notificationId: string,
+) {
+  const notification = await this.prisma.notification.findUnique({
+    where: { id: notificationId },
+  });
+
+  if (!notification) {
+    throw new ForbiddenException('Notification not found');
+  }
+
+  if (notification.userId !== userId) {
+    throw new ForbiddenException('Not allowed');
+  }
+
+  return this.prisma.notification.update({
+    where: { id: notificationId },
+    data: {
+      isRead: true,
+    },
+  });
+}
+
+async markAllNotificationsAsRead(userId: string) {
+  return this.prisma.notification.updateMany({
+    where: {
+      userId,
+      isRead: false,
+    },
+    data: {
+      isRead: true,
+    },
   });
 }
 }

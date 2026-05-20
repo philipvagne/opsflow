@@ -106,4 +106,22 @@ getTaskActivity(
 getNotifications(@Req() req: any) {
   return this.tasksService.getNotifications(req.user.sub);
 }
+
+@UseGuards(JwtAuthGuard)
+@Patch('notifications/:id/read')
+markNotificationAsRead(
+  @Req() req: any,
+  @Param('id') id: string,
+) {
+  return this.tasksService.markNotificationAsRead(
+    req.user.sub,
+    id,
+  );
+}
+
+@UseGuards(JwtAuthGuard)
+@Patch('tasks/notifications/mark-all-read')
+markAllNotificationsAsRead(@Req() req: any) {
+  return this.tasksService.markAllNotificationsAsRead(req.user.sub);
+}
 }
