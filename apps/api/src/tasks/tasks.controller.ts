@@ -135,6 +135,18 @@ markNotificationAsRead(
 }
 
 @UseGuards(JwtAuthGuard)
+@Delete('notifications/:id')
+deleteNotification(
+  @Req() req: any,
+  @Param('id') id: string,
+) {
+  return this.tasksService.deleteNotification(
+    req.user.sub,
+    id,
+  );
+}
+
+@UseGuards(JwtAuthGuard)
 @Patch('tasks/notifications/mark-all-read')
 markAllNotificationsAsRead(@Req() req: any) {
   return this.tasksService.markAllNotificationsAsRead(req.user.sub);

@@ -138,23 +138,6 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
     throw new ForbiddenException('Not allowed to update this task');
   }
 
-  const allowedTransitions: Record<string, string[]> = {
-    TODO: ['IN_PROGRESS'],
-    IN_PROGRESS: ['DONE'],
-    DONE: [],
-  };
-
-
-  if (data.status) {
-    const allowed = allowedTransitions[task.status];
-
-    if (!allowed.includes(data.status)) {
-      throw new ForbiddenException(
-        `Invalid status transition from ${task.status} to ${data.status}`,
-      );
-    }
-  }
-
   const updatedTask = await this.prisma.task.update({
     where: { id: taskId },
     data,
@@ -542,6 +525,33 @@ async markNotificationAsRead(
       isRead: true,
     },
   });
+}
+
+async deleteNotification(
+  userId: string,
+  notificationId: string,
+) {
+  const notification = await this.prisma.notification.findUnique({
+    where: { id: notificationId },
+  });
+
+  if (!notification) {
+    throw new ForbiddenException('Notification not found');
+  }
+
+  if (notification.userId !== userId) {
+    throw new ForbiddenException('Not allowed');
+  }
+
+  if (!notification.isRead) {
+    throw new ForbiddenException('Only read notifications can be deleted');
+  }
+
+  await this.prisma.notification.delete({
+    where: { id: notificationId },
+  });
+
+  return { message: 'Notification deleted successfully' };
 }
 
 async markAllNotificationsAsRead(userId: string) {

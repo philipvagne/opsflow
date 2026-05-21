@@ -150,6 +150,28 @@ useEffect(() => {
     }
   };
 
+  const deleteNotification = async (notificationId) => {
+    try {
+      await api.delete(
+        `/notifications/${notificationId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setNotifications((prev) =>
+        prev.filter((n) => n.id !== notificationId)
+      );
+    } catch (err) {
+      console.error(
+        "Failed to delete notification:",
+        err
+      );
+    }
+  };
+
 return (
   <div>
     <div className="dashboard-topbar">
@@ -164,6 +186,7 @@ return (
       openNotifications={openNotifications}
       setOpenNotifications={setOpenNotifications}
       markAsRead={markAsRead}
+      deleteNotification={deleteNotification}
     />
 
     <div

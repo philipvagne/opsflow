@@ -26,13 +26,8 @@ export default function TaskCard({ task, onClick }) {
       }}
     >
       {/* TITLE */}
-      <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+      <div style={{ fontWeight: "bold", lineHeight: 1.35 }}>
         {task.title}
-      </div>
-
-      {/* STATUS */}
-      <div style={{ fontSize: "12px", color: "#666" }}>
-        {task.status.replace("_", " ")}
       </div>
 
       {/* ASSIGNEE AVATAR STACK */}

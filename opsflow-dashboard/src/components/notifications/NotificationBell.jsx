@@ -3,6 +3,7 @@ export default function NotificationBell({
   openNotifications,
   setOpenNotifications,
   markAsRead,
+  deleteNotification,
 }) {
   const unreadCount = notifications.filter(
     (n) => !n.isRead
@@ -91,7 +92,38 @@ export default function NotificationBell({
                       : "#f5f9ff",
                   }}
                 >
-                  {n.message}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <span>{n.message}</span>
+
+                    {n.isRead && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(n.id);
+                        }}
+                        style={{
+                          border: "none",
+                          background: "#f3f4f6",
+                          borderRadius: "5px",
+                          cursor: "pointer",
+                          padding: "4px 7px",
+                          color: "#444",
+                          fontSize: "12px",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             )}
