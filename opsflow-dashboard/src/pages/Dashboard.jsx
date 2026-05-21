@@ -21,6 +21,7 @@ export default function Dashboard({ token, onLogout }) {
     updateTaskDueDate,
     assignTask,
     removeAssignee,
+    archiveTask,
   } = useTasks(token);
 
   const selectedTask =
@@ -225,6 +226,7 @@ return (
         updateTaskDueDate={updateTaskDueDate}
         assignTask={assignTask}
         removeAssignee={removeAssignee}
+        archiveTask={archiveTask}
       />
   </div>
 );

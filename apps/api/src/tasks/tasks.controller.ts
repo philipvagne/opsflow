@@ -101,6 +101,30 @@ getMyTasks(
 }
 
 @UseGuards(JwtAuthGuard)
+@Get('tasks/archived')
+getArchivedTasks(@Req() req: any) {
+  return this.tasksService.getArchivedTasks(req.user.sub);
+}
+
+@UseGuards(JwtAuthGuard)
+@Patch('tasks/:taskId/archive')
+archiveTask(
+  @Param('taskId') taskId: string,
+  @Req() req: any,
+) {
+  return this.tasksService.archiveTask(req.user.sub, taskId);
+}
+
+@UseGuards(JwtAuthGuard)
+@Patch('tasks/:taskId/restore')
+restoreTask(
+  @Param('taskId') taskId: string,
+  @Req() req: any,
+) {
+  return this.tasksService.restoreTask(req.user.sub, taskId);
+}
+
+@UseGuards(JwtAuthGuard)
 @Get('tasks/:taskId/activity')
 getTaskActivity(
   @Req() req: any,

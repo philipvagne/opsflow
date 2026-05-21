@@ -73,6 +73,7 @@ private async getTaskUpdatePayload(taskId: string) {
       status: task.status,
       title: task.title,
       dueDate: task.dueDate,
+      archivedAt: task.archivedAt,
       assignments: task.assignments,
     },
   };
@@ -249,6 +250,7 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
       status: updatedTask.status,
       title: updatedTask.title,
       dueDate: updatedTask.dueDate,
+      archivedAt: updatedTask.archivedAt,
       assignments: updatedTask.assignments,
     });
 
@@ -494,6 +496,7 @@ async removeAssignee(
 async getMyTasks(userId: string, status?: string, projectId?: string, page = 1, limit = 10) {
 
   const where: Prisma.TaskWhereInput = {
+    archivedAt: null,
     assignments: {
       some: {
         userId,
@@ -539,6 +542,107 @@ async getMyTasks(userId: string, status?: string, projectId?: string, page = 1, 
     limit,
     lastPage: Math.ceil(total / limit),
   };
+}
+
+async archiveTask(userId: string, taskId: string) {
+  const task = await this.getTaskWithMembership(taskId, userId);
+
+  if (task.status !== TaskStatus.DONE) {
+    throw new BadRequestException('Only completed tasks can be archived');
+  }
+
+  if (task.archivedAt) {
+    const { task: archivedTask } = await this.getTaskUpdatePayload(taskId);
+    return archivedTask;
+  }
+
+  await this.prisma.task.update({
+    where: { id: taskId },
+    data: { archivedAt: new Date() },
+  });
+
+  await this.prisma.activityLog.create({
+    data: {
+      action: 'TASK_ARCHIVED',
+      oldValue: null,
+      newValue: 'ARCHIVED',
+      userId,
+      taskId,
+    },
+  });
+
+  const { task: archivedTask, payload } = await this.getTaskUpdatePayload(taskId);
+  const recipientIds = await this.getTaskUpdateRecipientIds(
+    task.project.organizationId,
+  );
+
+  this.notificationsGateway.emitTaskUpdated(recipientIds, payload);
+
+  return archivedTask;
+}
+
+async restoreTask(userId: string, taskId: string) {
+  const task = await this.getTaskWithMembership(taskId, userId);
+
+  if (!task.archivedAt) {
+    const { task: restoredTask } = await this.getTaskUpdatePayload(taskId);
+    return restoredTask;
+  }
+
+  await this.prisma.task.update({
+    where: { id: taskId },
+    data: { archivedAt: null },
+  });
+
+  await this.prisma.activityLog.create({
+    data: {
+      action: 'TASK_RESTORED',
+      oldValue: 'ARCHIVED',
+      newValue: null,
+      userId,
+      taskId,
+    },
+  });
+
+  const { task: restoredTask, payload } = await this.getTaskUpdatePayload(taskId);
+  const recipientIds = await this.getTaskUpdateRecipientIds(
+    task.project.organizationId,
+  );
+
+  this.notificationsGateway.emitTaskUpdated(recipientIds, payload);
+
+  return restoredTask;
+}
+
+async getArchivedTasks(userId: string) {
+  return this.prisma.task.findMany({
+    where: {
+      archivedAt: {
+        not: null,
+      },
+      assignments: {
+        some: {
+          userId,
+        },
+      },
+    },
+    orderBy: {
+      archivedAt: 'desc',
+    },
+    include: {
+      assignments: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 async getTaskActivity(

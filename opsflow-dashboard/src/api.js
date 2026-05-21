@@ -37,4 +37,33 @@ export const createTaskUpdate = (token, taskId, message) =>
     },
   );
 
+export const getArchivedTasks = (token) =>
+  api.get("/tasks/archived", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const archiveTask = (token, taskId) =>
+  api.patch(
+    `/tasks/${taskId}/archive`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+export const restoreTask = (token, taskId) =>
+  api.patch(
+    `/tasks/${taskId}/restore`,
+    {},
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
 export default api;

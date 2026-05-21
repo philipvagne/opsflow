@@ -14,6 +14,7 @@ export default function TaskModal({
   updateTaskDueDate,
   assignTask,
   removeAssignee,
+  archiveTask,
 }) {
   const [assigneeQuery, setAssigneeQuery] = useState("");
   const [dueDateValue, setDueDateValue] = useState("");
@@ -24,6 +25,8 @@ export default function TaskModal({
   const [newUpdateMessage, setNewUpdateMessage] = useState("");
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [updateError, setUpdateError] = useState("");
+  const [archiveError, setArchiveError] = useState("");
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     if (!task) {
@@ -36,6 +39,7 @@ export default function TaskModal({
     setSearchError("");
     setNewUpdateMessage("");
     setUpdateError("");
+    setArchiveError("");
   }, [task?.id, task?.dueDate]);
 
   useEffect(() => {
@@ -183,6 +187,26 @@ export default function TaskModal({
     }
   };
 
+  const handleArchive = async () => {
+    if (!task || task.status !== "DONE" || task.archivedAt) {
+      return;
+    }
+
+    setArchiving(true);
+    setArchiveError("");
+
+    try {
+      await archiveTask(task.id);
+      onClose();
+    } catch (err) {
+      setArchiveError(
+        err.response?.data?.message || "Could not archive task."
+      );
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   const formattedDueDate = task?.dueDate
     ? new Date(task.dueDate).toLocaleDateString()
     : "No due date";
@@ -267,6 +291,38 @@ export default function TaskModal({
           <div style={{ marginTop: "10px", fontSize: "12px", color: "#666" }}>
             Current: <strong>{task.status}</strong>
           </div>
+
+          {task.status === "DONE" && !task.archivedAt && (
+            <div style={{ marginTop: "12px" }}>
+              <button
+                onClick={handleArchive}
+                disabled={archiving}
+                style={{
+                  background: "#111827",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "8px 10px",
+                  cursor: archiving ? "not-allowed" : "pointer",
+                  opacity: archiving ? 0.7 : 1,
+                }}
+              >
+                {archiving ? "Archiving..." : "Archive completed task"}
+              </button>
+
+              {archiveError && (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#991b1b",
+                    marginTop: "6px",
+                  }}
+                >
+                  {archiveError}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* DUE DATE */}

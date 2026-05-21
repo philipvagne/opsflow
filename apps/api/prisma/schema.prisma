@@ -91,6 +91,7 @@ model Task {
   updatedAt DateTime @updatedAt
 
   dueDate DateTime?
+  archivedAt DateTime?
 
   activityLogs ActivityLog[]
   updates      TaskUpdate[]

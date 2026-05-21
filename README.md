@@ -2,7 +2,7 @@
 
 OpsFlow is a real-time collaborative project management platform inspired by Linear, Jira, and ClickUp.
 
-The application is built as a full-stack workspace with a NestJS API, Prisma/PostgreSQL database layer, React dashboard, JWT authentication, Socket.IO realtime updates, task assignment, and notification workflows.
+The application is built as a full-stack workspace with a NestJS API, Prisma/PostgreSQL database layer, React dashboard, JWT authentication, Socket.IO realtime updates, task assignment, task progress updates, due dates, and notification workflows.
 
 ---
 
@@ -46,6 +46,8 @@ opsflow/
 ### Authentication
 
 * User signup with full name, username, email, and password
+* Signup creates only the user account
+* New users can exist without an organization immediately after signup
 * User login with JWT token response
 * Protected backend routes
 * Socket authentication through JWT
@@ -54,32 +56,36 @@ opsflow/
 
 ### Organizations And Projects
 
-* Users can exist without an organization immediately after signup
-* Organization creation and joining are handled separately from authentication
-* Members can create and view projects inside organizations
-* Organization membership is used to scope access and user search
+* Organization and membership models are still part of the system
+* Organization creation and joining are separate from authentication
+* Existing organization members can create and view projects
+* Organization membership scopes project access, task access, task updates, and user search
+* A dedicated organization onboarding, join, or invite flow is planned as a future dashboard feature
 
 ### User Identity Foundation
 
 * `GET /users/me` returns the logged-in user's public profile
 * `GET /users/search?q=` searches users by username, full name, or email
 * User search is scoped to users who share an organization
-* Search responses never expose password hashes or unnecessary user fields
+* Search responses return only `id`, `email`, `username`, and `fullName`
+* Password hashes and unnecessary user fields are never exposed
 
 ### Task Management
 
 * Create tasks inside projects
-* Update task status
+* Update task title, description, status, and due date
+* Move tasks freely between `TODO`, `IN_PROGRESS`, and `DONE`
 * Delete tasks
-* Optional due date support in the backend
 * Fetch only tasks assigned to the current user through `TaskAssignment`
-* Activity log foundation for task status changes
+* Activity logs are created for task status changes
+* Due dates can be added, changed, or cleared from the task modal
+* Overdue tasks are visually highlighted in the frontend when not complete
 
 ### Realtime Kanban
 
 * Kanban columns for `TODO`, `IN_PROGRESS`, and `DONE`
 * Realtime task updates through `task_updated`
-* Task cards update assignment avatars in realtime
+* Task cards update assignment avatars and due dates in realtime
 * Open task modal stays synchronized with live task data
 * When the current user is removed from a task, the card disappears instantly and remains gone after refresh
 
@@ -90,6 +96,16 @@ opsflow/
 * Assignment still supports raw user IDs
 * Assignment UI also supports same-organization user search
 * Assignment and removal emit realtime task updates to authorized users
+* Assignment and removal create database notifications and websocket alerts
+
+### Task Progress Updates
+
+* Task modal includes a simple progress update timeline
+* Users can post written task updates such as blockers, review notes, and completed work
+* Progress updates are stored in a separate `TaskUpdate` model
+* Updates include author identity and creation time
+* Updates are delivered in realtime through `task_update_created`
+* Progress update notifications are sent to assigned users except the author
 
 ### Notifications
 
@@ -98,26 +114,39 @@ opsflow/
 * Assignment notifications
 * Removal/unassignment notifications
 * Task status change notifications
+* Task progress update notifications
+* Due date added, changed, and cleared notifications
 * Mark single notifications as read
 * Mark all notifications as read
+* Delete read notifications
+* Unread notifications cannot be deleted
 
 ---
 
 ## Realtime Architecture
 
-OpsFlow uses two websocket event types with separate responsibilities.
+OpsFlow uses separate websocket events for task state, user alerts, and progress updates.
 
 ### `task_updated`
 
 Used for Kanban and task state synchronization:
 
 * status changes
+* due date changes
 * assignment changes
 * avatar stack updates
 * open task modal synchronization
 * removing cards when the current user is no longer assigned
 
 `task_updated` events are emitted to authorized user rooms instead of being broadcast globally.
+
+### `task_update_created`
+
+Used for user-written progress updates:
+
+* appends a new progress update to an open task modal
+* keeps collaborators viewing the same task in sync
+* is scoped to authorized organization members
 
 ### `notification`
 
@@ -128,6 +157,8 @@ Used for user-facing alerts:
 * assignment alerts
 * unassignment alerts
 * status change alerts
+* due date alerts
+* progress update alerts
 
 The frontend keeps notification handling in `Dashboard.jsx`. `socket.js` only creates the socket connection.
 
@@ -143,8 +174,11 @@ Core Prisma models:
 * Project
 * Task
 * TaskAssignment
+* TaskUpdate
 * ActivityLog
 * Notification
+
+`TaskUpdate` is separate from `ActivityLog` because it stores user-written collaboration updates. `ActivityLog` remains the foundation for system-generated audit history.
 
 ---
 
@@ -193,15 +227,36 @@ DELETE /tasks/:taskId
 PATCH  /tasks/:taskId/assign
 DELETE /tasks/:taskId/assign/:assigneeId
 GET    /tasks/:taskId/activity
+GET    /tasks/:taskId/updates
+POST   /tasks/:taskId/updates
 ```
 
 ### Notifications
 
 ```txt
-GET   /tasks/notifications
-PATCH /notifications/:id/read
-PATCH /tasks/notifications/mark-all-read
+GET    /tasks/notifications
+PATCH  /notifications/:id/read
+DELETE /notifications/:id
+PATCH  /tasks/notifications/mark-all-read
 ```
+
+---
+
+## Notification Types
+
+Current notification types include:
+
+```txt
+TASK_ASSIGNED
+TASK_UNASSIGNED
+TASK_STATUS_CHANGED
+TASK_UPDATE_POSTED
+TASK_DUE_DATE_ADDED
+TASK_DUE_DATE_CHANGED
+TASK_DUE_DATE_CLEARED
+```
+
+Progress update and due date notifications are sent only to assigned users, excluding the user who performed the action.
 
 ---
 
@@ -301,8 +356,9 @@ npm run lint
 1. Open the frontend.
 2. Create an account with full name, username, email, and password.
 3. Confirm login redirects to the dashboard.
-4. Logout and log back in.
-5. Try invalid credentials and confirm a readable error appears.
+4. Confirm the new user can have zero organizations without crashing the dashboard.
+5. Logout and log back in.
+6. Try invalid credentials and confirm a readable error appears.
 
 ### User Search And Assignment
 
@@ -327,9 +383,39 @@ npm run lint
 ### Status Notifications
 
 1. Assign users to a task.
-2. Change the task status.
+2. Move the task between any status columns, including `DONE` back to `TODO`.
 3. Confirm assigned users receive status change notifications.
 4. Confirm the Kanban board and open task modal stay synchronized.
+
+### Due Dates
+
+1. Open a task modal.
+2. Add a due date.
+3. Confirm assigned users except the actor receive a due date added notification.
+4. Change the due date.
+5. Confirm assigned users except the actor receive a due date changed notification.
+6. Clear the due date.
+7. Confirm assigned users except the actor receive a due date cleared notification.
+8. Refresh and confirm the persisted due date state is correct.
+9. Set a past due date on an incomplete task and confirm the overdue visual state appears.
+
+### Task Progress Updates
+
+1. Open a task modal.
+2. Post a progress update.
+3. Confirm the update appears in the timeline immediately.
+4. Open the same task as another authorized organization member.
+5. Post another update and confirm it appears in realtime.
+6. Confirm assigned users except the author receive a popup and dropdown notification.
+7. Confirm unauthorized users cannot fetch or post task updates.
+
+### Notification Deletion
+
+1. Receive or create a notification.
+2. Mark it as read.
+3. Delete it from the dropdown.
+4. Refresh and confirm it stays deleted.
+5. Confirm unread notifications do not show a delete button and cannot be deleted by the API.
 
 ---
 
@@ -340,6 +426,7 @@ npm run lint
 * Authentication and signup/login UI
 * JWT-protected API routes
 * Organization and membership foundation
+* Signup without automatic organization creation
 * Project management foundation
 * User identity endpoints
 * Same-organization user search
@@ -348,7 +435,12 @@ npm run lint
 * Realtime notification system
 * Open modal realtime synchronization
 * Task activity log foundation
-* Backend due date support
+* Due date UI and backend support
+* Due date notifications
+* Task progress update timeline
+* Realtime task progress updates
+* Progress update notifications
+* Read notification deletion
 
 ### In Progress / Next Improvements
 
@@ -356,7 +448,6 @@ npm run lint
 * Organization onboarding after signup
 * Richer profile and avatar UI
 * Drag and drop Kanban
-* Comments
 * File attachments
 * Task filtering and search
 * Calendar views

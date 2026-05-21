@@ -127,6 +127,27 @@ const removeAssignee = async (taskId, assigneeId) => {
   }
 };
 
+const archiveTask = async (taskId) => {
+  try {
+    await api.patch(
+      `/tasks/${taskId}/archive`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    setTasks((prev) =>
+      prev.filter((task) => task.id !== taskId)
+    );
+  } catch (err) {
+    console.error("Failed to archive task:", err);
+    throw err;
+  }
+};
+
   
   // SOCKETS
 useEffect(() => {
@@ -137,8 +158,6 @@ useEffect(() => {
 
   // TASK STATUS / CONTENT UPDATES
 socket.on("task_updated", (data) => {
-  console.log("task_updated RECEIVED:", data);
-
   if (!currentUserId) {
     return;
   }
@@ -150,7 +169,11 @@ socket.on("task_updated", (data) => {
   );
 
   setTasks((prev) => {
-    if (!isAssignedToCurrentUser) {
+    const isArchived =
+      data.archivedAt !== null &&
+      data.archivedAt !== undefined;
+
+    if (!isAssignedToCurrentUser || isArchived) {
       return prev.filter((task) => task.id !== data.taskId);
     }
 
@@ -167,6 +190,7 @@ socket.on("task_updated", (data) => {
               status: data.status,
               title: data.title,
               dueDate: data.dueDate,
+              archivedAt: data.archivedAt,
               assignments,
             }
           : task
@@ -181,6 +205,7 @@ socket.on("task_updated", (data) => {
         title: data.title,
         status: data.status,
         dueDate: data.dueDate,
+        archivedAt: data.archivedAt,
         assignments,
       },
     ];
@@ -196,15 +221,15 @@ socket.on("task_updated", (data) => {
 
   // GROUP TASKS
   const todoTasks = tasks.filter(
-    (t) => t.status === "TODO"
+    (t) => !t.archivedAt && t.status === "TODO"
   );
 
   const inProgressTasks = tasks.filter(
-    (t) => t.status === "IN_PROGRESS"
+    (t) => !t.archivedAt && t.status === "IN_PROGRESS"
   );
 
   const doneTasks = tasks.filter(
-    (t) => t.status === "DONE"
+    (t) => !t.archivedAt && t.status === "DONE"
   );
 
 return {
@@ -218,5 +243,6 @@ return {
   updateTaskDueDate,
   assignTask,
   removeAssignee,
+  archiveTask,
 };
 }
