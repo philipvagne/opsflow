@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { searchUsers } from "../../api";
+import {
+  createTaskUpdate,
+  getTaskUpdates,
+  searchUsers,
+} from "../../api";
+import { createSocket } from "../../socket";
 
 export default function TaskModal({
   task,
@@ -15,6 +20,10 @@ export default function TaskModal({
   const [userResults, setUserResults] = useState([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [taskUpdates, setTaskUpdates] = useState([]);
+  const [newUpdateMessage, setNewUpdateMessage] = useState("");
+  const [updatesLoading, setUpdatesLoading] = useState(false);
+  const [updateError, setUpdateError] = useState("");
 
   useEffect(() => {
     if (!task) {
@@ -25,7 +34,76 @@ export default function TaskModal({
     setDueDateValue(task.dueDate ? task.dueDate.slice(0, 10) : "");
     setUserResults([]);
     setSearchError("");
+    setNewUpdateMessage("");
+    setUpdateError("");
   }, [task?.id, task?.dueDate]);
+
+  useEffect(() => {
+    if (!task || !token) {
+      setTaskUpdates([]);
+      return;
+    }
+
+    let active = true;
+
+    const fetchUpdates = async () => {
+      setUpdatesLoading(true);
+      setUpdateError("");
+
+      try {
+        const res = await getTaskUpdates(token, task.id);
+
+        if (active) {
+          setTaskUpdates(res.data);
+        }
+      } catch (err) {
+        if (active) {
+          setUpdateError("Could not load updates.");
+        }
+      } finally {
+        if (active) {
+          setUpdatesLoading(false);
+        }
+      }
+    };
+
+    fetchUpdates();
+
+    return () => {
+      active = false;
+    };
+  }, [task?.id, token]);
+
+  useEffect(() => {
+    if (!task || !token) {
+      return;
+    }
+
+    const socket = createSocket(token);
+
+    socket.on("task_update_created", (data) => {
+      if (data.taskId !== task.id) {
+        return;
+      }
+
+      setTaskUpdates((current) => {
+        const exists = current.some(
+          (update) => update.id === data.update.id
+        );
+
+        if (exists) {
+          return current;
+        }
+
+        return [...current, data.update];
+      });
+    });
+
+    return () => {
+      socket.off("task_update_created");
+      socket.disconnect();
+    };
+  }, [task?.id, token]);
 
   useEffect(() => {
     const query = assigneeQuery.trim();
@@ -73,6 +151,36 @@ export default function TaskModal({
     await assignTask(task.id, userId);
     setAssigneeQuery("");
     setUserResults([]);
+  };
+
+  const submitTaskUpdate = async () => {
+    const message = newUpdateMessage.trim();
+
+    if (!message) {
+      setUpdateError("Write an update before posting.");
+      return;
+    }
+
+    setUpdateError("");
+
+    try {
+      const res = await createTaskUpdate(token, task.id, message);
+
+      setTaskUpdates((current) => {
+        const exists = current.some(
+          (update) => update.id === res.data.id
+        );
+
+        if (exists) {
+          return current;
+        }
+
+        return [...current, res.data];
+      });
+      setNewUpdateMessage("");
+    } catch (err) {
+      setUpdateError("Could not post update.");
+    }
   };
 
   const formattedDueDate = task?.dueDate
@@ -353,7 +461,7 @@ export default function TaskModal({
                   {user.fullName || user.username || user.email}
                 </div>
                 <div style={{ fontSize: "12px", color: "#666" }}>
-                  {user.username ? `@${user.username} · ` : ""}
+                  {user.username ? `@${user.username} - ` : ""}
                   {user.email}
                 </div>
               </button>
@@ -365,6 +473,101 @@ export default function TaskModal({
           Select a user from search, or press Enter to assign by raw user ID.
         </div>
       </div>
+
+        {/* PROGRESS UPDATES */}
+        <div style={{ marginTop: "20px" }}>
+          <strong>Progress Updates</strong>
+
+          <div style={{ marginTop: "10px" }}>
+            <textarea
+              value={newUpdateMessage}
+              onChange={(e) => setNewUpdateMessage(e.target.value)}
+              placeholder="Share a progress update..."
+              rows={3}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "8px",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+                resize: "vertical",
+                font: "inherit",
+              }}
+            />
+
+            <button
+              onClick={submitTaskUpdate}
+              style={{ marginTop: "8px" }}
+            >
+              Post Update
+            </button>
+          </div>
+
+          {updateError && (
+            <div style={{ fontSize: "12px", color: "#991b1b", marginTop: "6px" }}>
+              {updateError}
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: "12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              maxHeight: "180px",
+              overflowY: "auto",
+            }}
+          >
+            {updatesLoading ? (
+              <div style={{ fontSize: "13px", color: "#666" }}>
+                Loading updates...
+              </div>
+            ) : taskUpdates.length === 0 ? (
+              <div style={{ fontSize: "13px", color: "#777" }}>
+                No progress updates yet
+              </div>
+            ) : (
+              taskUpdates.map((update) => {
+                const author =
+                  update.user?.fullName ||
+                  update.user?.username ||
+                  update.user?.email ||
+                  "Unknown user";
+
+                return (
+                  <div
+                    key={update.id}
+                    style={{
+                      padding: "10px",
+                      background: "#f9fafb",
+                      border: "1px solid #edf0f3",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "12px",
+                        color: "#666",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      <span>{author}</span>
+                      <span>{new Date(update.createdAt).toLocaleString()}</span>
+                    </div>
+
+                    <div style={{ fontSize: "14px", color: "#333" }}>
+                      {update.message}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
 
         {/* DESCRIPTION */}
         <div style={{ marginTop: "20px" }}>

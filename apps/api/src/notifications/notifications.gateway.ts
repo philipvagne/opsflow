@@ -58,4 +58,12 @@ emitTaskUpdated(userIds: string[], payload: any) {
     this.server.to(userId).emit("task_updated", payload);
   }
 }
+
+emitTaskUpdateCreated(userIds: string[], payload: any) {
+  const uniqueUserIds = [...new Set(userIds)];
+
+  for (const userId of uniqueUserIds) {
+    this.server.to(userId).emit("task_update_created", payload);
+  }
+}
 }

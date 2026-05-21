@@ -117,6 +117,32 @@ getTaskActivity(
 }
 
 @UseGuards(JwtAuthGuard)
+@Get('tasks/:taskId/updates')
+getTaskUpdates(
+  @Req() req: any,
+  @Param('taskId') taskId: string,
+) {
+  return this.tasksService.getTaskUpdates(
+    req.user.sub,
+    taskId,
+  );
+}
+
+@UseGuards(JwtAuthGuard)
+@Post('tasks/:taskId/updates')
+createTaskUpdate(
+  @Req() req: any,
+  @Param('taskId') taskId: string,
+  @Body() body: { message?: string },
+) {
+  return this.tasksService.createTaskUpdate(
+    req.user.sub,
+    taskId,
+    body.message,
+  );
+}
+
+@UseGuards(JwtAuthGuard)
 @Get('tasks/notifications')
 getNotifications(@Req() req: any) {
   return this.tasksService.getNotifications(req.user.sub);

@@ -30,6 +30,7 @@ model User {
   memberships   Membership[]
   activityLogs  ActivityLog[]
   notifications Notification[]
+  taskUpdates   TaskUpdate[]
 
   taskAssignments TaskAssignment[] @relation("UserTaskAssignments")
 
@@ -92,6 +93,7 @@ model Task {
   dueDate DateTime?
 
   activityLogs ActivityLog[]
+  updates      TaskUpdate[]
 }
 
 model ActivityLog {
@@ -134,4 +136,18 @@ model TaskAssignment {
   assignedAt DateTime @default(now())
 
   @@unique([taskId, userId])
+}
+
+model TaskUpdate {
+  id        String   @id @default(cuid())
+  message   String
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
 }

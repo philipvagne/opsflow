@@ -19,4 +19,22 @@ export const searchUsers = (token, query) =>
     },
   });
 
+export const getTaskUpdates = (token, taskId) =>
+  api.get(`/tasks/${taskId}/updates`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const createTaskUpdate = (token, taskId, message) =>
+  api.post(
+    `/tasks/${taskId}/updates`,
+    { message },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
 export default api;

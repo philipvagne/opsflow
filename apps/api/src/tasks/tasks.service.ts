@@ -20,6 +20,30 @@ private async getTaskUpdateRecipientIds(organizationId: string) {
   return memberships.map((membership) => membership.userId);
 }
 
+private async getTaskWithMembership(taskId: string, userId: string) {
+  const task = await this.prisma.task.findUnique({
+    where: { id: taskId },
+    include: { project: true },
+  });
+
+  if (!task) {
+    throw new ForbiddenException('Task not found');
+  }
+
+  const membership = await this.prisma.membership.findFirst({
+    where: {
+      userId,
+      organizationId: task.project.organizationId,
+    },
+  });
+
+  if (!membership) {
+    throw new ForbiddenException('Not allowed');
+  }
+
+  return task;
+}
+
 private async getTaskUpdatePayload(taskId: string) {
   const task = await this.prisma.task.findUnique({
     where: { id: taskId },
@@ -514,6 +538,68 @@ return {
     lastPage: Math.ceil(total / limit),
   },
 };
+}
+
+async getTaskUpdates(userId: string, taskId: string) {
+  await this.getTaskWithMembership(taskId, userId);
+
+  return this.prisma.taskUpdate.findMany({
+    where: { taskId },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          email: true,
+        },
+      },
+    },
+  });
+}
+
+async createTaskUpdate(
+  userId: string,
+  taskId: string,
+  message?: string,
+) {
+  const trimmedMessage = message?.trim();
+
+  if (!trimmedMessage) {
+    throw new BadRequestException('Update message is required');
+  }
+
+  const task = await this.getTaskWithMembership(taskId, userId);
+
+  const update = await this.prisma.taskUpdate.create({
+    data: {
+      taskId,
+      userId,
+      message: trimmedMessage,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  const recipientIds = await this.getTaskUpdateRecipientIds(
+    task.project.organizationId,
+  );
+
+  this.notificationsGateway.emitTaskUpdateCreated(recipientIds, {
+    taskId,
+    update,
+  });
+
+  return update;
 }
 
 async getNotifications(userId: string) {
