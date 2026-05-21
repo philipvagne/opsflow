@@ -78,6 +78,47 @@ private async getTaskUpdatePayload(taskId: string) {
   };
 }
 
+private async notifyAssignedUsersExceptActor(
+  taskId: string,
+  actorUserId: string,
+  type: string,
+  message: string,
+) {
+  const assignments = await this.prisma.taskAssignment.findMany({
+    where: {
+      taskId,
+      userId: {
+        not: actorUserId,
+      },
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  const recipientIds = [
+    ...new Set(assignments.map((assignment) => assignment.userId)),
+  ];
+
+  for (const recipientId of recipientIds) {
+    const notification = await this.prisma.notification.create({
+      data: {
+        type,
+        message,
+        userId: recipientId,
+        taskId,
+      },
+    });
+
+    this.notificationsGateway.sendNotification(recipientId, {
+      type,
+      message,
+      taskId,
+      notificationId: notification.id,
+    });
+  }
+}
+
 async createTask(
   orgId: string,
   projectId: string,
@@ -222,6 +263,33 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
         taskId: task.id,
       },
     });
+  }
+
+  if ('dueDate' in data) {
+    const previousDueDate = task.dueDate?.getTime() ?? null;
+    const nextDueDate = updatedTask.dueDate?.getTime() ?? null;
+
+    if (previousDueDate !== nextDueDate) {
+      let notificationType = 'TASK_DUE_DATE_CHANGED';
+      let notificationMessage = `Due date changed on "${task.title}"`;
+
+      if (!task.dueDate && updatedTask.dueDate) {
+        notificationType = 'TASK_DUE_DATE_ADDED';
+        notificationMessage = `Due date added to "${task.title}"`;
+      }
+
+      if (task.dueDate && !updatedTask.dueDate) {
+        notificationType = 'TASK_DUE_DATE_CLEARED';
+        notificationMessage = `Due date cleared on "${task.title}"`;
+      }
+
+      await this.notifyAssignedUsersExceptActor(
+        task.id,
+        userId,
+        notificationType,
+        notificationMessage,
+      );
+    }
   }
 
 
@@ -589,6 +657,16 @@ async createTaskUpdate(
       },
     },
   });
+
+  const authorName =
+    update.user.fullName || update.user.username || update.user.email;
+
+  await this.notifyAssignedUsersExceptActor(
+    taskId,
+    userId,
+    'TASK_UPDATE_POSTED',
+    `${authorName} posted an update on "${task.title}"`,
+  );
 
   const recipientIds = await this.getTaskUpdateRecipientIds(
     task.project.organizationId,
