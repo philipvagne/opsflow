@@ -3,6 +3,7 @@ import useTasks from "../hooks/useTasks";
 import NotificationBell from "../components/notifications/NotificationBell";
 import KanbanColumn from "../components/kanban/KanbanColumn";
 import TaskModal from "../components/tasks/TaskModal";
+import CreateTaskPanel from "../components/tasks/CreateTaskPanel";
 import TopBar from "../components/dashboard/TopBar";
 import LeftRail from "../components/dashboard/LeftRail";
 import CenterWorkspace from "../components/dashboard/CenterWorkspace";
@@ -18,6 +19,7 @@ export default function Dashboard({ token, onLogout }) {
   const [openNotifications, setOpenNotifications] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [activeView, setActiveView] = useState("tasks");
+  const [contextMode, setContextMode] = useState("empty");
   
   const {
     tasks,
@@ -29,6 +31,7 @@ export default function Dashboard({ token, onLogout }) {
     assignTask,
     removeAssignee,
     archiveTask,
+    createTask,
   } = useTasks(token);
 
   const selectedTask =
@@ -36,12 +39,35 @@ export default function Dashboard({ token, onLogout }) {
 
   const selectTask = (task) => {
     setActiveView("tasks");
+    setContextMode("details");
     setSelectedTaskId(task.id);
   };
 
   const changeView = (view) => {
     setActiveView(view);
     setSelectedTaskId(null);
+    setContextMode("empty");
+  };
+
+  const openCreateTask = () => {
+    setActiveView("tasks");
+    setSelectedTaskId(null);
+    setContextMode("create");
+  };
+
+  const closeContextPanel = () => {
+    setSelectedTaskId(null);
+    setContextMode("empty");
+  };
+
+  const handleCreateTask = async (taskInput) => {
+    const createdTask = await createTask(taskInput);
+
+    setActiveView("tasks");
+    setSelectedTaskId(createdTask.id);
+    setContextMode("details");
+
+    return createdTask;
   };
 
   const workspaceMeta = {
@@ -134,6 +160,7 @@ useEffect(() => {
   const handleEsc = (event) => {
     if (event.key === "Escape") {
       setSelectedTaskId(null);
+      setContextMode("empty");
     }
   };
 
@@ -147,6 +174,7 @@ useEffect(() => {
 useEffect(() => {
   if (selectedTaskId && !selectedTask) {
     setSelectedTaskId(null);
+    setContextMode("empty");
   }
 }, [selectedTaskId, selectedTask]);
 
@@ -243,6 +271,17 @@ return (
         <CenterWorkspace
           eyebrow={currentWorkspace.eyebrow}
           title={currentWorkspace.title}
+          actions={
+            activeView === "tasks" ? (
+              <button
+                type="button"
+                className="ui-button ui-button-primary"
+                onClick={openCreateTask}
+              >
+                + New Task
+              </button>
+            ) : null
+          }
         >
           {activeView === "tasks" ? (
             <div className="kanban-board">
@@ -274,10 +313,16 @@ return (
         </CenterWorkspace>
 
         <ContextPanel>
-          {selectedTask && (
+          {contextMode === "create" ? (
+            <CreateTaskPanel
+              token={token}
+              onClose={closeContextPanel}
+              onCreateTask={handleCreateTask}
+            />
+          ) : selectedTask ? (
             <TaskModal
               task={selectedTask}
-              onClose={() => setSelectedTaskId(null)}
+              onClose={closeContextPanel}
               token={token}
               updateTaskStatus={updateTaskStatus}
               updateTaskDueDate={updateTaskDueDate}
@@ -285,7 +330,7 @@ return (
               removeAssignee={removeAssignee}
               archiveTask={archiveTask}
             />
-          )}
+          ) : null}
         </ContextPanel>
       </div>
 

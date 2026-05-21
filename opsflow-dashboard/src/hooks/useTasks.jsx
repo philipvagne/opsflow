@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../api";
+import api, { createTask as createTaskRequest } from "../api";
 import { createSocket } from "../socket";
 
 function getUserIdFromToken(token) {
@@ -148,6 +148,69 @@ const archiveTask = async (taskId) => {
   }
 };
 
+const createTask = async ({
+  orgId,
+  projectId,
+  title,
+  description,
+  dueDate,
+}) => {
+  const currentUserId = getUserIdFromToken(token);
+
+  const res = await createTaskRequest(
+    token,
+    orgId,
+    projectId,
+    {
+      title,
+      description,
+      dueDate,
+    }
+  );
+
+  const createdTask = res.data;
+
+  if (currentUserId) {
+    await api.patch(
+      `/tasks/${createdTask.id}/assign`,
+      { assigneeId: currentUserId },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  }
+
+  const visibleTask = {
+    ...createdTask,
+    assignments: currentUserId
+      ? [
+          {
+            id: `current-user-${createdTask.id}`,
+            taskId: createdTask.id,
+            userId: currentUserId,
+            user: {
+              id: currentUserId,
+            },
+          },
+        ]
+      : [],
+  };
+
+  setTasks((prev) => {
+    const exists = prev.some((task) => task.id === createdTask.id);
+
+    if (exists) {
+      return prev;
+    }
+
+    return [visibleTask, ...prev];
+  });
+
+  return visibleTask;
+};
+
   
   // SOCKETS
 useEffect(() => {
@@ -244,5 +307,6 @@ return {
   assignTask,
   removeAssignee,
   archiveTask,
+  createTask,
 };
 }

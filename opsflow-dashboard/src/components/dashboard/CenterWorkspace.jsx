@@ -1,6 +1,7 @@
 export default function CenterWorkspace({
   eyebrow = "Workspace",
   title,
+  actions,
   children,
 }) {
   return (
@@ -10,6 +11,12 @@ export default function CenterWorkspace({
           <div className="dashboard-eyebrow">{eyebrow}</div>
           <h3>{title}</h3>
         </div>
+
+        {actions && (
+          <div className="workspace-header-actions">
+            {actions}
+          </div>
+        )}
       </div>
 
       {children}

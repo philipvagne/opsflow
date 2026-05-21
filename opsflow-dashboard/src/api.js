@@ -11,6 +11,36 @@ export const getCurrentUser = (token) =>
     },
   });
 
+export const getAuthProfile = (token) =>
+  api.get("/auth/me", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const getOrganizationProjects = (token, orgId) =>
+  api.get(`/organizations/${orgId}/projects`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const createTask = (
+  token,
+  orgId,
+  projectId,
+  task
+) =>
+  api.post(
+    `/organizations/${orgId}/projects/${projectId}/tasks`,
+    task,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
 export const searchUsers = (token, query) =>
   api.get("/users/search", {
     params: { q: query },
