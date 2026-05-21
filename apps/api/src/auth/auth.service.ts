@@ -1,5 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,45 +18,70 @@ export class AuthService {
 ) {}
 
   async register(email: string, username: string, password: string) {
+    if (!email || !username || !password) {
+      throw new BadRequestException('Email, username, and password are required');
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { username }],
+      },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email or username is already in use');
+    }
+
     const hashed = await bcrypt.hash(password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        username,
-        passwordHash: hashed,
-      },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          email,
+          username,
+          passwordHash: hashed,
+        },
+      });
 
-    const org = await this.prisma.organization.create({
-      data: {
-        name: `${username}'s Org`,
-        slug: `${username}-org`,
-      },
-    });
+      const org = await this.prisma.organization.create({
+        data: {
+          name: `${username}'s Org`,
+          slug: `${username}-org`,
+        },
+      });
 
-    await this.prisma.membership.create({
-      data: {
-        userId: user.id,
-        organizationId: org.id,
-        role: 'OWNER',
-      },
-    });
+      await this.prisma.membership.create({
+        data: {
+          userId: user.id,
+          organizationId: org.id,
+          role: 'OWNER',
+        },
+      });
 
-    return this.signToken(user.id, user.email);
+      return this.signToken(user.id, user.email);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Email or username is already in use');
+      }
+
+      throw error;
+    }
   }
 
   async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
 
     if (!valid) {
-      throw new Error('Invalid password');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     return this.signToken(user.id, user.email);
@@ -79,7 +109,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new UnauthorizedException('User not found');
     }
 
     return {

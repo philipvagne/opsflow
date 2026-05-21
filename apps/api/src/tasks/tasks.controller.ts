@@ -22,6 +22,7 @@ createTask(
     req.user.sub,
     body.title,
     body.description,
+    body.dueDate,
   );
 }
 

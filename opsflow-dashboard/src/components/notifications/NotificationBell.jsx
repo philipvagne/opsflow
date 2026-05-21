@@ -22,7 +22,7 @@ export default function NotificationBell({
           setOpenNotifications((prev) => !prev);
         }}
       >
-        🔔 Notifications{" "}
+        Notifications{" "}
         {unreadCount > 0 && `(${unreadCount})`}
       </button>
 

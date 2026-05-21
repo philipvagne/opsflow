@@ -22,7 +22,7 @@ handleConnection(client: Socket) {
     const token = client.handshake.auth?.token;
 
     if (!token) {
-      console.log('❌ No token provided');
+      console.log('No token provided');
       client.disconnect();
       return;
     }
@@ -35,15 +35,15 @@ handleConnection(client: Socket) {
 
     client.join(userId);
 
-    console.log('🟢 SOCKET AUTH SUCCESS:', userId);
+    console.log('SOCKET AUTH SUCCESS:', userId);
   } catch (err) {
-    console.log('❌ SOCKET AUTH FAILED:', err.message);
+    console.log('SOCKET AUTH FAILED:', err.message);
     client.disconnect();
   }
 }
 
 sendNotification(userId: string, payload: any) {
-  console.log('📡 EMITTING NOTIFICATION:', {
+  console.log('EMITTING NOTIFICATION:', {
     userId,
     payload,
   });
@@ -51,8 +51,11 @@ sendNotification(userId: string, payload: any) {
   this.server.to(userId).emit('notification', payload);
 }
 
-emitTaskUpdated(payload: any) {
-  console.log("📡 task_updated EMIT:", payload);
-  this.server.emit("task_updated", payload);
+emitTaskUpdated(userIds: string[], payload: any) {
+  const uniqueUserIds = [...new Set(userIds)];
+  console.log("task_updated EMIT:", payload);
+  for (const userId of uniqueUserIds) {
+    this.server.to(userId).emit("task_updated", payload);
+  }
 }
 }

@@ -11,6 +11,15 @@ export class TasksService {
   private notificationsGateway: NotificationsGateway,
 ) {}
 
+private async getTaskUpdateRecipientIds(organizationId: string) {
+  const memberships = await this.prisma.membership.findMany({
+    where: { organizationId },
+    select: { userId: true },
+  });
+
+  return memberships.map((membership) => membership.userId);
+}
+
 async createTask(
   orgId: string,
   projectId: string,
@@ -131,7 +140,11 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
     },
   });
 
-    this.notificationsGateway.emitTaskUpdated({
+    const recipientIds = await this.getTaskUpdateRecipientIds(
+      task.project.organizationId,
+    );
+
+    this.notificationsGateway.emitTaskUpdated(recipientIds, {
       taskId: updatedTask.id,
       status: updatedTask.status,
       title: updatedTask.title,
@@ -283,7 +296,11 @@ async assignTask(userId: string, taskId: string, assigneeId: string) {
     }
 
     // 4. SINGLE Kanban sync event (IMPORTANT FIX)
-      this.notificationsGateway.emitTaskUpdated({
+      const recipientIds = await this.getTaskUpdateRecipientIds(
+        task.project.organizationId,
+      );
+
+      this.notificationsGateway.emitTaskUpdated(recipientIds, {
         taskId: updatedTask.id,
         status: updatedTask.status,
         title: updatedTask.title,
@@ -347,11 +364,19 @@ async removeAssignee(
     },
   });
 
-  this.notificationsGateway.emitTaskUpdated({
-    taskId: updatedTask?.id,
-    status: updatedTask?.status,
-    title: updatedTask?.title,
-    assignments: updatedTask?.assignments,
+  if (!updatedTask) {
+    throw new ForbiddenException('Task not found after update');
+  }
+
+  const recipientIds = await this.getTaskUpdateRecipientIds(
+    task.project.organizationId,
+  );
+
+  this.notificationsGateway.emitTaskUpdated(recipientIds, {
+    taskId: updatedTask.id,
+    status: updatedTask.status,
+    title: updatedTask.title,
+    assignments: updatedTask.assignments,
   });
 
   return updatedTask;

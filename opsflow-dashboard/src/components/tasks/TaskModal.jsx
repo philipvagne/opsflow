@@ -54,7 +54,7 @@ export default function TaskModal({
               cursor: "pointer",
             }}
           >
-            ✕
+            x
           </button>
         </div>
 
@@ -144,7 +144,7 @@ export default function TaskModal({
                   transition: "0.15s ease",
                 }}
             >
-              ×
+              x
             </button>
           </div>
               ))

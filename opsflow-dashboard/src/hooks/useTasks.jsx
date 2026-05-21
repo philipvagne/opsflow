@@ -100,7 +100,7 @@ useEffect(() => {
 
   // TASK STATUS / CONTENT UPDATES
 socket.on("task_updated", (data) => {
-  console.log("🔥 task_updated RECEIVED:", data);
+  console.log("task_updated RECEIVED:", data);
 
   setTasks((prev) => {
     const exists = prev.some(

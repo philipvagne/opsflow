@@ -54,9 +54,4 @@ createOrganization(
     body.name,
   );
 }
-
-  @Get('test')
-test() {
-  return 'works';
-}
 }

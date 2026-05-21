@@ -246,7 +246,7 @@ npm run start:dev
 ## Frontend
 
 ```bash
-cd apps/web
+cd opsflow-dashboard
 npm install
 npm run dev
 ```
@@ -266,4 +266,4 @@ JWT_SECRET=your_secret_here
 
 # Author
 
-Built by Philip Agné
+Built by Philip Agne

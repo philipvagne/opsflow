@@ -8,7 +8,7 @@ export const createSocket = (token) => {
   });
 
   socket.on("connect", () => {
-    console.log("🟢 Connected:", socket.id);
+    console.log("Connected:", socket.id);
   });
 
   return socket;
