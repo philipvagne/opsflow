@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { UpdateTaskDto } from './dto/update-task.dto';
@@ -48,6 +48,7 @@ private async getTaskUpdatePayload(taskId: string) {
       taskId: task.id,
       status: task.status,
       title: task.title,
+      dueDate: task.dueDate,
       assignments: task.assignments,
     },
   };
@@ -138,9 +139,27 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
     throw new ForbiddenException('Not allowed to update this task');
   }
 
+  const updateData: Prisma.TaskUpdateInput = {
+    ...data,
+  };
+
+  if ('dueDate' in data) {
+    if (data.dueDate) {
+      const dueDate = new Date(data.dueDate);
+
+      if (Number.isNaN(dueDate.getTime())) {
+        throw new BadRequestException('Invalid due date');
+      }
+
+      updateData.dueDate = dueDate;
+    } else {
+      updateData.dueDate = null;
+    }
+  }
+
   const updatedTask = await this.prisma.task.update({
     where: { id: taskId },
-    data,
+    data: updateData,
     include: {
       assignments: {
         include: {
@@ -164,6 +183,7 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
       taskId: updatedTask.id,
       status: updatedTask.status,
       title: updatedTask.title,
+      dueDate: updatedTask.dueDate,
       assignments: updatedTask.assignments,
     });
 

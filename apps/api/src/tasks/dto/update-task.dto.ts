@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum, ValidateIf } from 'class-validator';
 
 export enum TaskStatus {
   TODO = 'TODO',
@@ -19,7 +19,7 @@ export class UpdateTaskDto {
   @IsEnum(TaskStatus)
   status?: TaskStatus;
 
-  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsString()
-  dueDate?: string;
+  dueDate?: string | null;
 }

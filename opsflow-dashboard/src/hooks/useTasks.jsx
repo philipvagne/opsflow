@@ -46,14 +46,11 @@ export default function useTasks(token) {
   };
 
   // UPDATE STATUS
-  const updateTaskStatus = async (
-    taskId,
-    newStatus
-  ) => {
+  const updateTask = async (taskId, updates) => {
     try {
       await api.patch(
         `/tasks/${taskId}`,
-        { status: newStatus },
+        updates,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -64,16 +61,30 @@ export default function useTasks(token) {
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
-            ? { ...t, status: newStatus }
+            ? { ...t, ...updates }
             : t
         )
       );
     } catch (err) {
       console.error(
-        "Failed to update status:",
+        "Failed to update task:",
         err
       );
     }
+  };
+
+  const updateTaskStatus = async (
+    taskId,
+    newStatus
+  ) => {
+    return updateTask(taskId, { status: newStatus });
+  };
+
+  const updateTaskDueDate = async (
+    taskId,
+    dueDate
+  ) => {
+    return updateTask(taskId, { dueDate });
   };
 
 const assignTask = async (taskId, assigneeId) => {
@@ -155,6 +166,7 @@ socket.on("task_updated", (data) => {
               ...task,
               status: data.status,
               title: data.title,
+              dueDate: data.dueDate,
               assignments,
             }
           : task
@@ -168,6 +180,7 @@ socket.on("task_updated", (data) => {
         id: data.taskId,
         title: data.title,
         status: data.status,
+        dueDate: data.dueDate,
         assignments,
       },
     ];
@@ -200,7 +213,9 @@ return {
   inProgressTasks,
   doneTasks,
   fetchTasks,
+  updateTask,
   updateTaskStatus,
+  updateTaskDueDate,
   assignTask,
   removeAssignee,
 };

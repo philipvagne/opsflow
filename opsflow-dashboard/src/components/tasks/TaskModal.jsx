@@ -6,10 +6,12 @@ export default function TaskModal({
   onClose,
   token,
   updateTaskStatus,
+  updateTaskDueDate,
   assignTask,
   removeAssignee,
 }) {
   const [assigneeQuery, setAssigneeQuery] = useState("");
+  const [dueDateValue, setDueDateValue] = useState("");
   const [userResults, setUserResults] = useState([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -20,9 +22,10 @@ export default function TaskModal({
     }
 
     setAssigneeQuery("");
+    setDueDateValue(task.dueDate ? task.dueDate.slice(0, 10) : "");
     setUserResults([]);
     setSearchError("");
-  }, [task?.id]);
+  }, [task?.id, task?.dueDate]);
 
   useEffect(() => {
     const query = assigneeQuery.trim();
@@ -71,6 +74,16 @@ export default function TaskModal({
     setAssigneeQuery("");
     setUserResults([]);
   };
+
+  const formattedDueDate = task?.dueDate
+    ? new Date(task.dueDate).toLocaleDateString()
+    : "No due date";
+
+  const isOverdue =
+    task?.dueDate &&
+    task.status !== "DONE" &&
+    new Date(task.dueDate).setHours(0, 0, 0, 0) <
+      new Date().setHours(0, 0, 0, 0);
 
   if (!task) return null;
 
@@ -145,6 +158,59 @@ export default function TaskModal({
 
           <div style={{ marginTop: "10px", fontSize: "12px", color: "#666" }}>
             Current: <strong>{task.status}</strong>
+          </div>
+        </div>
+
+        {/* DUE DATE */}
+        <div style={{ marginTop: "20px" }}>
+          <strong>Due Date</strong>
+
+          <div
+            style={{
+              marginTop: "8px",
+              fontSize: "13px",
+              color: isOverdue ? "#b91c1c" : "#444",
+              fontWeight: isOverdue ? "bold" : "normal",
+            }}
+          >
+            {formattedDueDate}
+            {isOverdue && " - Overdue"}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              marginTop: "10px",
+            }}
+          >
+            <input
+              type="date"
+              value={dueDateValue}
+              onChange={(e) => setDueDateValue(e.target.value)}
+              style={{
+                padding: "8px",
+                borderRadius: "6px",
+                border: "1px solid #ccc",
+              }}
+            />
+
+            <button
+              onClick={() =>
+                updateTaskDueDate(task.id, dueDateValue || null)
+              }
+            >
+              Save
+            </button>
+
+            <button
+              onClick={() => {
+                setDueDateValue("");
+                updateTaskDueDate(task.id, null);
+              }}
+            >
+              Clear
+            </button>
           </div>
         </div>
 

@@ -4,6 +4,12 @@ export default function TaskCard({ task, onClick }) {
     IN_PROGRESS: "#3b82f6",
     DONE: "#10b981",
   };
+  const hasDueDate = Boolean(task.dueDate);
+  const isOverdue =
+    hasDueDate &&
+    task.status !== "DONE" &&
+    new Date(task.dueDate).setHours(0, 0, 0, 0) <
+      new Date().setHours(0, 0, 0, 0);
 
   return (
     <div
@@ -29,6 +35,23 @@ export default function TaskCard({ task, onClick }) {
       <div style={{ fontWeight: "bold", lineHeight: 1.35 }}>
         {task.title}
       </div>
+
+      {hasDueDate && (
+        <div
+          style={{
+            display: "inline-flex",
+            marginTop: "8px",
+            padding: "3px 7px",
+            borderRadius: "999px",
+            background: isOverdue ? "#fee2e2" : "#f3f4f6",
+            color: isOverdue ? "#991b1b" : "#555",
+            fontSize: "12px",
+            fontWeight: isOverdue ? "bold" : "normal",
+          }}
+        >
+          Due {new Date(task.dueDate).toLocaleDateString()}
+        </div>
+      )}
 
       {/* ASSIGNEE AVATAR STACK */}
       {task.assignments?.length > 0 && (

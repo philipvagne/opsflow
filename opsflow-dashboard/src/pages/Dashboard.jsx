@@ -18,6 +18,7 @@ export default function Dashboard({ token, onLogout }) {
     inProgressTasks,
     doneTasks,
     updateTaskStatus,
+    updateTaskDueDate,
     assignTask,
     removeAssignee,
   } = useTasks(token);
@@ -221,6 +222,7 @@ return (
         onClose={() => setSelectedTaskId(null)}
         token={token}
         updateTaskStatus={updateTaskStatus}
+        updateTaskDueDate={updateTaskDueDate}
         assignTask={assignTask}
         removeAssignee={removeAssignee}
       />
