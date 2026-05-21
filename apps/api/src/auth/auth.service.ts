@@ -49,21 +49,6 @@ export class AuthService {
         },
       });
 
-      const org = await this.prisma.organization.create({
-        data: {
-          name: `${username}'s Org`,
-          slug: `${username}-org`,
-        },
-      });
-
-      await this.prisma.membership.create({
-        data: {
-          userId: user.id,
-          organizationId: org.id,
-          role: 'OWNER',
-        },
-      });
-
       return this.signToken(user.id, user.email);
     } catch (error) {
       if (
