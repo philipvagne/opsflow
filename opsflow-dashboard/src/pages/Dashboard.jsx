@@ -7,7 +7,7 @@ import api from "../api";
 import { createSocket } from "../socket";
 import toast from "react-hot-toast";
 
-export default function Dashboard({ token }) {
+export default function Dashboard({ token, onLogout }) {
   const [notifications, setNotifications] = useState([]);
   const [openNotifications, setOpenNotifications] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -138,7 +138,12 @@ useEffect(() => {
 
 return (
   <div>
-    <h2>Dashboard</h2>
+    <div className="dashboard-topbar">
+      <h2>Dashboard</h2>
+      <button className="logout-button" onClick={onLogout}>
+        Logout
+      </button>
+    </div>
 
     <NotificationBell
       notifications={notifications}
