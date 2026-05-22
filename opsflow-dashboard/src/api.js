@@ -25,6 +25,27 @@ export const getOrganizationProjects = (token, orgId) =>
     },
   });
 
+export const createProject = (token, orgId, project) =>
+  api.post(`/organizations/${orgId}/projects`, project, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const getProject = (token, projectId) =>
+  api.get(`/projects/${projectId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+export const updateProject = (token, projectId, project) =>
+  api.patch(`/projects/${projectId}`, project, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
 export const getMyOrganizations = (token) =>
   api.get("/organizations/my", {
     headers: {

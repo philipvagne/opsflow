@@ -1,13 +1,18 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import { Role, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 
 @Injectable()
-export class ProjectsService { constructor(private prisma: PrismaService) {}
+export class ProjectsService {
+  constructor(private prisma: PrismaService) {}
 
-  async createProject(orgId: string, userId: string, name: string, description?: string) {
-    // 1. Check membership (TENANT SECURITY)
+  private async requireMembership(orgId: string, userId: string) {
     const membership = await this.prisma.membership.findFirst({
       where: {
         organizationId: orgId,
@@ -19,37 +24,105 @@ export class ProjectsService { constructor(private prisma: PrismaService) {}
       throw new ForbiddenException('Not allowed in this organization');
     }
 
-    // 2. Create project
+    return membership;
+  }
+
+  private requireProjectManager(role: Role) {
+    const projectManagerRoles: Role[] = [Role.OWNER, Role.ADMIN];
+
+    if (!projectManagerRoles.includes(role)) {
+      throw new ForbiddenException(
+        'Only organization owners or admins can manage projects',
+      );
+    }
+  }
+
+  private async getTaskCounts(projectId: string) {
+    const now = new Date();
+
+    const [totalActive, done, overdue] = await Promise.all([
+      this.prisma.task.count({
+        where: {
+          projectId,
+          archivedAt: null,
+        },
+      }),
+      this.prisma.task.count({
+        where: {
+          projectId,
+          archivedAt: null,
+          status: TaskStatus.DONE,
+        },
+      }),
+      this.prisma.task.count({
+        where: {
+          projectId,
+          archivedAt: null,
+          status: {
+            not: TaskStatus.DONE,
+          },
+          dueDate: {
+            lt: now,
+          },
+        },
+      }),
+    ]);
+
+    return {
+      totalActive,
+      done,
+      overdue,
+    };
+  }
+
+  private async withTaskCounts(project: any) {
+    return {
+      ...project,
+      taskCounts: await this.getTaskCounts(project.id),
+    };
+  }
+
+  async createProject(
+    orgId: string,
+    userId: string,
+    name: string,
+    description?: string,
+  ) {
+    const membership = await this.requireMembership(orgId, userId);
+    this.requireProjectManager(membership.role);
+
+    const trimmedName = name?.trim();
+
+    if (!trimmedName) {
+      throw new BadRequestException('Project name is required');
+    }
+
     const project = await this.prisma.project.create({
       data: {
-        name,
-        description,
+        name: trimmedName,
+        description: description?.trim() || null,
         organizationId: orgId,
       },
     });
 
-    return project;
+    return this.withTaskCounts(project);
   }
 
   async getProjects(orgId: string, userId: string) {
-    // 1. Check membership
-    const membership = await this.prisma.membership.findFirst({
-      where: {
-        organizationId: orgId,
-        userId,
-      },
-    });
+    await this.requireMembership(orgId, userId);
 
-    if (!membership) {
-      throw new ForbiddenException('Not allowed in this organization');
-    }
-
-    // 2. Return projects for org
-    return this.prisma.project.findMany({
+    const projects = await this.prisma.project.findMany({
       where: {
         organizationId: orgId,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
+
+    return Promise.all(
+      projects.map((project) => this.withTaskCounts(project)),
+    );
   }
 
   async getProjectById(projectId: string, userId: string) {
@@ -62,18 +135,51 @@ export class ProjectsService { constructor(private prisma: PrismaService) {}
       throw new ForbiddenException('Project not found');
     }
 
-    // 3. Check membership in org
-    const membership = await this.prisma.membership.findFirst({
-      where: {
-        organizationId: project.organizationId,
-        userId,
-      },
+    await this.requireMembership(project.organizationId, userId);
+
+    return this.withTaskCounts(project);
+  }
+
+  async updateProject(
+    projectId: string,
+    userId: string,
+    body: UpdateProjectDto,
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
     });
 
-    if (!membership) {
-      throw new ForbiddenException('Not allowed');
+    if (!project) {
+      throw new ForbiddenException('Project not found');
     }
 
-    return project;
+    const membership = await this.requireMembership(
+      project.organizationId,
+      userId,
+    );
+    this.requireProjectManager(membership.role);
+
+    const data: { name?: string; description?: string | null } = {};
+
+    if (body.name !== undefined) {
+      const trimmedName = body.name.trim();
+
+      if (!trimmedName) {
+        throw new BadRequestException('Project name is required');
+      }
+
+      data.name = trimmedName;
+    }
+
+    if (body.description !== undefined) {
+      data.description = body.description.trim() || null;
+    }
+
+    const updatedProject = await this.prisma.project.update({
+      where: { id: projectId },
+      data,
+    });
+
+    return this.withTaskCounts(updatedProject);
   }
 }

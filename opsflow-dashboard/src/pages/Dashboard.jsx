@@ -20,6 +20,7 @@ import ContextPanel from "../components/dashboard/ContextPanel";
 import CommandPalette from "../components/command/CommandPalette";
 import ArchivedTasks from "../components/archive/ArchivedTasks";
 import OrganizationsWorkspace from "../components/organizations/OrganizationsWorkspace";
+import ProjectsWorkspace from "../components/projects/ProjectsWorkspace";
 import api from "../api";
 import { createSocket } from "../socket";
 import toast from "react-hot-toast";
@@ -29,6 +30,7 @@ const defaultTaskFilters = {
   status: "ALL",
   assignee: "ALL",
   due: "ALL",
+  project: "ALL",
   sort: "DUE_DATE",
 };
 
@@ -239,6 +241,19 @@ export default function Dashboard({ token, onLogout }) {
       a.label.localeCompare(b.label)
     );
   }, [activeTasks]);
+  const projectOptions = useMemo(() => {
+    const projects = new Map();
+
+    activeTasks.forEach((task) => {
+      if (task.project?.id && !projects.has(task.project.id)) {
+        projects.set(task.project.id, task.project);
+      }
+    });
+
+    return Array.from(projects.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, [activeTasks]);
 
   const filteredTasks = useMemo(() => {
     const today = startOfToday();
@@ -302,6 +317,13 @@ export default function Dashboard({ token, onLogout }) {
           }
         }
 
+        if (
+          taskFilters.project !== "ALL" &&
+          task.project?.id !== taskFilters.project
+        ) {
+          return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -342,6 +364,7 @@ export default function Dashboard({ token, onLogout }) {
     taskFilters.status !== "ALL",
     taskFilters.assignee !== "ALL",
     taskFilters.due !== "ALL",
+    taskFilters.project !== "ALL",
     taskFilters.sort !== "DUE_DATE",
   ].filter(Boolean).length;
 
@@ -428,6 +451,10 @@ export default function Dashboard({ token, onLogout }) {
 
     if (activeView === "organizations") {
       return <OrganizationsWorkspace token={token} />;
+    }
+
+    if (activeView === "projects") {
+      return <ProjectsWorkspace token={token} />;
     }
 
     if (activeView !== "tasks") {
@@ -750,6 +777,7 @@ return (
             filters={taskFilters}
             onFiltersChange={setTaskFilters}
             assigneeOptions={assigneeOptions}
+            projectOptions={projectOptions}
             activeFilterCount={activeFilterCount}
             onClear={() => setTaskFilters(defaultTaskFilters)}
           />

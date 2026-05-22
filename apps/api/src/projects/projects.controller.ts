@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   Req,
@@ -11,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 @Controller()
 export class ProjectsController {
@@ -55,6 +57,20 @@ export class ProjectsController {
     return this.projectsService.getProjectById(
       projectId,
       req.user.sub,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('projects/:projectId')
+  updateProject(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+    @Body() body: UpdateProjectDto,
+  ) {
+    return this.projectsService.updateProject(
+      projectId,
+      req.user.sub,
+      body,
     );
   }
 }

@@ -2,6 +2,7 @@ export default function TaskProductivityToolbar({
   filters,
   onFiltersChange,
   assigneeOptions,
+  projectOptions,
   activeFilterCount,
   onClear,
 }) {
@@ -60,6 +61,20 @@ export default function TaskProductivityToolbar({
         <option value="TODAY">Due today</option>
         <option value="UPCOMING">Upcoming</option>
         <option value="NONE">No due date</option>
+      </select>
+
+      <select
+        className="toolbar-select"
+        value={filters.project}
+        onChange={(event) => updateFilter("project", event.target.value)}
+        title="Project"
+      >
+        <option value="ALL">All projects</option>
+        {projectOptions.map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
+          </option>
+        ))}
       </select>
 
       <select
