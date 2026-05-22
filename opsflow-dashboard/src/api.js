@@ -116,6 +116,13 @@ export const createTaskUpdate = (token, taskId, message) =>
     },
   );
 
+export const getTaskNotes = (token, taskId) =>
+  api.get(`/tasks/${taskId}/notes`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
 export const getArchivedTasks = (token) =>
   api.get("/tasks/archived", {
     headers: {

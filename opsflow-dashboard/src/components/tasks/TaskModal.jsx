@@ -1,10 +1,33 @@
 import { useEffect, useState } from "react";
 import {
+  createNote,
   createTaskUpdate,
+  deleteNote,
+  getTaskNotes,
   getTaskUpdates,
   searchUsers,
+  updateNote,
 } from "../../api";
 import { createSocket } from "../../socket";
+
+const formatNoteDate = (value) =>
+  value ? new Date(value).toLocaleDateString() : "Unknown";
+
+const getNoteAuthor = (note) =>
+  note.createdBy?.fullName ||
+  note.createdBy?.username ||
+  note.createdBy?.email ||
+  "Unknown";
+
+const getNotePreview = (content) => {
+  const text = content?.trim();
+
+  if (!text) {
+    return "No context yet";
+  }
+
+  return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+};
 
 export default function TaskModal({
   task,
@@ -28,6 +51,17 @@ export default function TaskModal({
   const [updateError, setUpdateError] = useState("");
   const [archiveError, setArchiveError] = useState("");
   const [archiving, setArchiving] = useState(false);
+  const [relatedNotes, setRelatedNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesError, setNotesError] = useState("");
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [creatingNote, setCreatingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editNoteTitle, setEditNoteTitle] = useState("");
+  const [editNoteContent, setEditNoteContent] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState(null);
 
   useEffect(() => {
     if (!task) {
@@ -41,6 +75,12 @@ export default function TaskModal({
     setNewUpdateMessage("");
     setUpdateError("");
     setArchiveError("");
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setEditingNoteId(null);
+    setEditNoteTitle("");
+    setEditNoteContent("");
+    setNotesError("");
   }, [task?.id, task?.dueDate]);
 
   useEffect(() => {
@@ -73,6 +113,42 @@ export default function TaskModal({
     };
 
     fetchUpdates();
+
+    return () => {
+      active = false;
+    };
+  }, [task?.id, token]);
+
+  useEffect(() => {
+    if (!task || !token) {
+      setRelatedNotes([]);
+      return;
+    }
+
+    let active = true;
+
+    const fetchRelatedNotes = async () => {
+      setNotesLoading(true);
+      setNotesError("");
+
+      try {
+        const res = await getTaskNotes(token, task.id);
+
+        if (active) {
+          setRelatedNotes(res.data);
+        }
+      } catch (err) {
+        if (active) {
+          setNotesError("Could not load related notes.");
+        }
+      } finally {
+        if (active) {
+          setNotesLoading(false);
+        }
+      }
+    };
+
+    fetchRelatedNotes();
 
     return () => {
       active = false;
@@ -185,6 +261,107 @@ export default function TaskModal({
       setNewUpdateMessage("");
     } catch (err) {
       setUpdateError("Could not post update.");
+    }
+  };
+
+  const openNoteEditor = (note) => {
+    setEditingNoteId(note.id);
+    setEditNoteTitle(note.title || "");
+    setEditNoteContent(note.content || "");
+    setNotesError("");
+  };
+
+  const submitLinkedNote = async () => {
+    const title = newNoteTitle.trim();
+    const organizationId =
+      task?.project?.organizationId || task?.organizationId || null;
+
+    if (!title || !organizationId) {
+      setNotesError(
+        !title
+          ? "Note title is required."
+          : "This task is missing organization context. Refresh or reopen the task."
+      );
+      return;
+    }
+
+    setCreatingNote(true);
+    setNotesError("");
+
+    try {
+      const res = await createNote(token, {
+        title,
+        content: newNoteContent,
+        organizationId,
+        projectId: task.project?.id || undefined,
+        taskId: task.id,
+      });
+
+      setRelatedNotes((current) => [res.data, ...current]);
+      setNewNoteTitle("");
+      setNewNoteContent("");
+      openNoteEditor(res.data);
+    } catch (err) {
+      setNotesError(
+        err.response?.data?.message || "Could not create linked note."
+      );
+    } finally {
+      setCreatingNote(false);
+    }
+  };
+
+  const saveLinkedNote = async () => {
+    const title = editNoteTitle.trim();
+
+    if (!editingNoteId || !title) {
+      setNotesError("Note title is required.");
+      return;
+    }
+
+    setSavingNote(true);
+    setNotesError("");
+
+    try {
+      const res = await updateNote(token, editingNoteId, {
+        title,
+        content: editNoteContent,
+      });
+
+      setRelatedNotes((current) =>
+        current.map((note) =>
+          note.id === res.data.id ? res.data : note
+        )
+      );
+    } catch (err) {
+      setNotesError(
+        err.response?.data?.message || "Could not save linked note."
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const removeLinkedNote = async (noteId) => {
+    setDeletingNoteId(noteId);
+    setNotesError("");
+
+    try {
+      await deleteNote(token, noteId);
+      setRelatedNotes((current) =>
+        current.filter((note) => note.id !== noteId)
+      );
+
+      if (editingNoteId === noteId) {
+        setEditingNoteId(null);
+        setEditNoteTitle("");
+        setEditNoteContent("");
+      }
+    } catch (err) {
+      setNotesError(
+        err.response?.data?.message || "Could not delete linked note."
+      );
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -503,6 +680,115 @@ export default function TaskModal({
               })
             )}
           </div>
+        </section>
+
+        <section className="task-panel-section">
+          <strong>Related Notes</strong>
+
+          <div className="stack-sm">
+            <input
+              type="text"
+              value={newNoteTitle}
+              onChange={(e) => setNewNoteTitle(e.target.value)}
+              placeholder="Create linked note title"
+              className="ui-input"
+            />
+
+            <textarea
+              value={newNoteContent}
+              onChange={(e) => setNewNoteContent(e.target.value)}
+              placeholder="Instructions, context, procedure, or reference..."
+              rows={3}
+              className="ui-textarea"
+            />
+
+            <button
+              className="ui-button ui-button-primary"
+              onClick={submitLinkedNote}
+              disabled={creatingNote}
+            >
+              {creatingNote ? "Creating..." : "Create linked note"}
+            </button>
+          </div>
+
+          {notesError && (
+            <div className="form-error">
+              {notesError}
+            </div>
+          )}
+
+          <div className="task-related-notes">
+            {notesLoading ? (
+              <div className="muted-text">Loading related notes...</div>
+            ) : relatedNotes.length === 0 ? (
+              <div className="muted-text">
+                No related notes yet
+              </div>
+            ) : (
+              relatedNotes.map((note) => (
+                <button
+                  key={note.id}
+                  type="button"
+                  className={
+                    note.id === editingNoteId
+                      ? "task-note-card active"
+                      : "task-note-card"
+                  }
+                  onClick={() => openNoteEditor(note)}
+                >
+                  <div className="task-note-meta">
+                    <span>{formatNoteDate(note.updatedAt)}</span>
+                    <span>{getNoteAuthor(note)}</span>
+                  </div>
+                  <strong>{note.title}</strong>
+                  <p>{getNotePreview(note.content)}</p>
+                </button>
+              ))
+            )}
+          </div>
+
+          {editingNoteId && (
+            <div className="task-note-editor">
+              <label className="form-label">
+                Title
+                <input
+                  className="ui-input"
+                  value={editNoteTitle}
+                  onChange={(e) => setEditNoteTitle(e.target.value)}
+                />
+              </label>
+
+              <label className="form-label">
+                Content
+                <textarea
+                  className="ui-textarea task-note-editor-textarea"
+                  value={editNoteContent}
+                  onChange={(e) => setEditNoteContent(e.target.value)}
+                  rows={6}
+                />
+              </label>
+
+              <div className="button-row">
+                <button
+                  className="ui-button ui-button-dark"
+                  onClick={saveLinkedNote}
+                  disabled={savingNote}
+                >
+                  {savingNote ? "Saving..." : "Save note"}
+                </button>
+
+                <button
+                  className="ui-button ui-button-danger"
+                  onClick={() => removeLinkedNote(editingNoteId)}
+                  disabled={deletingNoteId === editingNoteId}
+                >
+                  {deletingNoteId === editingNoteId
+                    ? "Deleting..."
+                    : "Delete note"}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="task-panel-section">

@@ -52,6 +52,7 @@ private async getTaskUpdatePayload(taskId: string) {
         select: {
           id: true,
           name: true,
+          organizationId: true,
         },
       },
       assignments: {
@@ -163,6 +164,15 @@ async createTask(
 
         dueDate: dueDate ? new Date(dueDate) : null,
       },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            organizationId: true,
+          },
+        },
+      },
     });
   }
 
@@ -234,6 +244,13 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
     where: { id: taskId },
     data: updateData,
     include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          organizationId: true,
+        },
+      },
       assignments: {
         include: {
           user: {
@@ -258,6 +275,7 @@ async updateTask(userId: string, taskId: string, data: UpdateTaskDto) {
       title: updatedTask.title,
       dueDate: updatedTask.dueDate,
       archivedAt: updatedTask.archivedAt,
+      project: updatedTask.project,
       assignments: updatedTask.assignments,
     });
 
@@ -528,6 +546,13 @@ async getMyTasks(userId: string, status?: string, projectId?: string, page = 1, 
     skip,
     take: limit,
     include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          organizationId: true,
+        },
+      },
       assignments: {
         include: {
           user: {
@@ -648,6 +673,7 @@ async getArchivedTasks(userId: string) {
         select: {
           id: true,
           name: true,
+          organizationId: true,
         },
       },
       assignments: {
