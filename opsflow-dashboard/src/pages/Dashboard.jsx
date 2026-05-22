@@ -149,6 +149,102 @@ export default function Dashboard({ token, onLogout }) {
     workspaceMeta[activeView] || workspaceMeta.tasks;
   const activeTasks = tasks.filter((task) => !task.archivedAt);
 
+  const renderActiveTasks = () => {
+    if (activeTaskLayout === "kanban") {
+      return (
+        <DndContext
+          sensors={sensors}
+          onDragEnd={handleTaskDragEnd}
+        >
+          <div className="kanban-board">
+            <KanbanColumn
+              id="TODO"
+              title="TODO"
+              tasks={todoTasks}
+              setSelectedTask={selectTask}
+            />
+
+            <KanbanColumn
+              id="IN_PROGRESS"
+              title="IN PROGRESS"
+              tasks={inProgressTasks}
+              setSelectedTask={selectTask}
+            />
+
+            <KanbanColumn
+              id="DONE"
+              title="DONE"
+              tasks={doneTasks}
+              setSelectedTask={selectTask}
+            />
+          </div>
+        </DndContext>
+      );
+    }
+
+    if (activeTaskLayout === "table") {
+      return (
+        <TaskTable
+          tasks={activeTasks}
+          onSelectTask={selectTask}
+        />
+      );
+    }
+
+    return (
+      <TaskCalendar
+        tasks={activeTasks}
+        onSelectTask={selectTask}
+      />
+    );
+  };
+
+  const renderCanvasContent = () => {
+    if (contextMode === "create") {
+      return (
+        <CreateTaskPanel
+          token={token}
+          onClose={closeContextPanel}
+          onCreateTask={handleCreateTask}
+        />
+      );
+    }
+
+    if (selectedTask) {
+      return (
+        <TaskModal
+          task={selectedTask}
+          onClose={closeContextPanel}
+          token={token}
+          updateTaskStatus={updateTaskStatus}
+          updateTaskDueDate={updateTaskDueDate}
+          assignTask={assignTask}
+          removeAssignee={removeAssignee}
+          archiveTask={archiveTask}
+          viewers={selectedTaskViewers}
+        />
+      );
+    }
+
+    if (activeView === "archive") {
+      return <ArchivedTasks token={token} />;
+    }
+
+    if (activeView === "organizations") {
+      return <OrganizationsWorkspace token={token} />;
+    }
+
+    if (activeView !== "tasks") {
+      return (
+        <div className="workspace-placeholder canvas-placeholder">
+          {currentWorkspace.placeholder}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
 useEffect(() => {
   fetchNotifications();
 
@@ -345,7 +441,8 @@ useEffect(() => {
 return (
   <div className="dashboard-shell">
     <TopBar
-      title="Dashboard"
+      activeView={activeView}
+      onViewChange={changeView}
       actions={
         <button className="logout-button" onClick={onLogout}>
           Logout
@@ -355,132 +452,61 @@ return (
 
     <div className="dashboard-body">
       <LeftRail
-        activeView={activeView}
-        onViewChange={changeView}
+        onlineUsers={onlineUsers}
       />
 
       <div className="dashboard-workspace-stack">
         <CenterWorkspace
-          eyebrow={currentWorkspace.eyebrow}
-          title={currentWorkspace.title}
+          eyebrow="Live workspace"
+          title="Active Tasks"
           actions={
-            activeView === "tasks" ? (
-              <>
-                <div className="view-toggle" aria-label="Task view">
-                  <button
-                    type="button"
-                    className={
-                      activeTaskLayout === "kanban" ? "active" : ""
-                    }
-                    onClick={() => setActiveTaskLayout("kanban")}
-                  >
-                    Kanban
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      activeTaskLayout === "table" ? "active" : ""
-                    }
-                    onClick={() => setActiveTaskLayout("table")}
-                  >
-                    Table
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      activeTaskLayout === "calendar" ? "active" : ""
-                    }
-                    onClick={() => setActiveTaskLayout("calendar")}
-                  >
-                    Calendar
-                  </button>
-                </div>
+            <>
+              <div className="view-toggle" aria-label="Task view">
                 <button
                   type="button"
-                  className="ui-button ui-button-primary"
-                  onClick={openCreateTask}
+                  className={
+                    activeTaskLayout === "kanban" ? "active" : ""
+                  }
+                  onClick={() => setActiveTaskLayout("kanban")}
                 >
-                  + New Task
+                  Kanban
                 </button>
-              </>
-            ) : null
+                <button
+                  type="button"
+                  className={
+                    activeTaskLayout === "table" ? "active" : ""
+                  }
+                  onClick={() => setActiveTaskLayout("table")}
+                >
+                  Table
+                </button>
+                <button
+                  type="button"
+                  className={
+                    activeTaskLayout === "calendar" ? "active" : ""
+                  }
+                  onClick={() => setActiveTaskLayout("calendar")}
+                >
+                  Calendar
+                </button>
+              </div>
+              <button
+                type="button"
+                className="ui-button ui-button-primary"
+                onClick={openCreateTask}
+              >
+                + New Task
+              </button>
+            </>
           }
         >
-          {activeView === "tasks" && activeTaskLayout === "kanban" ? (
-            <DndContext
-              sensors={sensors}
-              onDragEnd={handleTaskDragEnd}
-            >
-              <div className="kanban-board">
-                <KanbanColumn
-                  id="TODO"
-                  title="TODO"
-                  tasks={todoTasks}
-                  setSelectedTask={selectTask}
-                />
-
-                <KanbanColumn
-                  id="IN_PROGRESS"
-                  title="IN PROGRESS"
-                  tasks={inProgressTasks}
-                  setSelectedTask={selectTask}
-                />
-
-                <KanbanColumn
-                  id="DONE"
-                  title="DONE"
-                  tasks={doneTasks}
-                  setSelectedTask={selectTask}
-                />
-              </div>
-            </DndContext>
-          ) : activeView === "tasks" ? (
-            activeTaskLayout === "table" ? (
-              <TaskTable
-                tasks={activeTasks}
-                onSelectTask={selectTask}
-              />
-            ) : (
-              <TaskCalendar
-                tasks={activeTasks}
-                onSelectTask={selectTask}
-              />
-            )
-          ) : activeView === "archive" ? (
-            <ArchivedTasks token={token} />
-          ) : activeView === "organizations" ? (
-            <OrganizationsWorkspace token={token} />
-          ) : (
-            <div className="workspace-placeholder">
-              {currentWorkspace.placeholder}
-            </div>
-          )}
+          {renderActiveTasks()}
         </CenterWorkspace>
 
-        <ContextPanel>
-          {contextMode === "create" ? (
-            <CreateTaskPanel
-              token={token}
-              onClose={closeContextPanel}
-              onCreateTask={handleCreateTask}
-            />
-          ) : selectedTask ? (
-            <TaskModal
-              task={selectedTask}
-              onClose={closeContextPanel}
-              token={token}
-              updateTaskStatus={updateTaskStatus}
-              updateTaskDueDate={updateTaskDueDate}
-              assignTask={assignTask}
-              removeAssignee={removeAssignee}
-              archiveTask={archiveTask}
-              viewers={selectedTaskViewers}
-            />
-          ) : null}
-        </ContextPanel>
+        <ContextPanel>{renderCanvasContent()}</ContextPanel>
       </div>
 
-      <RightRail onlineUsers={onlineUsers}>
+      <RightRail>
         <NotificationBell
           notifications={notifications}
           openNotifications={openNotifications}

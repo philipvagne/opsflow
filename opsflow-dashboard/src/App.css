@@ -11,6 +11,8 @@
   --radius-lg: 10px;
   --surface-page: #f8fafc;
   --surface-panel: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-glass-strong: rgba(255, 255, 255, 0.9);
   --surface-muted: #f1f5f9;
   --surface-subtle: #f8fafc;
   --border-soft: #e2e8f0;
@@ -22,7 +24,7 @@
   --accent-strong: #0f5f59;
   --danger: #991b1b;
   --danger-surface: #fee2e2;
-  --shadow-panel: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-panel: 0 18px 45px rgba(15, 23, 42, 0.13);
   --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
@@ -167,15 +169,47 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 58px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 46px;
   box-sizing: border-box;
-  padding: 0 2px;
+  padding: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
-.dashboard-topbar h2,
 .workspace-header h3 {
   margin: 0;
   color: var(--text-primary);
+}
+
+.top-launcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.top-launcher button {
+  width: 36px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.top-launcher button:hover,
+.top-launcher button.active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-card);
 }
 
 .dashboard-topbar-actions {
@@ -197,14 +231,16 @@
 .logout-button {
   padding: 8px 12px;
   color: var(--text-secondary);
-  background: var(--surface-muted);
+  background: rgba(241, 245, 249, 0.82);
 }
 
 .dashboard-shell {
   height: 100svh;
   box-sizing: border-box;
-  padding: 18px;
-  background: var(--surface-page);
+  padding: 16px;
+  background:
+    linear-gradient(rgba(248, 250, 252, 0.28), rgba(248, 250, 252, 0.46)),
+    url("/opsflow-background.png") center / cover no-repeat fixed;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -213,8 +249,9 @@
 
 .dashboard-body {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 280px;
-  gap: 16px;
+  grid-template-columns: 168px minmax(0, 1fr) 268px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 22px;
   align-items: stretch;
   margin-top: 18px;
   min-height: 0;
@@ -223,73 +260,57 @@
 
 .dashboard-left-rail,
 .dashboard-right-rail,
-.dashboard-center-workspace,
 .dashboard-context-panel {
   min-height: 0;
   box-sizing: border-box;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--surface-panel);
+  border: 1px solid rgba(226, 232, 240, 0.72);
+  border-radius: var(--radius-lg);
+  background: var(--surface-glass);
   overflow: hidden;
+  backdrop-filter: blur(20px);
   box-shadow: var(--shadow-panel);
 }
 
 .dashboard-left-rail,
 .dashboard-right-rail {
-  padding: 14px;
+  padding: 12px;
   overflow-y: auto;
+}
+
+.dashboard-left-rail {
+  max-height: min(520px, calc(100svh - 112px));
+  align-self: start;
+}
+
+.dashboard-right-rail {
+  max-height: min(520px, calc(100svh - 112px));
+  align-self: start;
 }
 
 .dashboard-center-workspace {
   min-width: 0;
   min-height: 0;
-  padding: 16px;
+  padding: 0;
   overflow: auto;
+  box-sizing: border-box;
+  background: transparent;
 }
 
 .dashboard-workspace-stack {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(220px, 34%);
-  gap: 16px;
+  grid-template-rows: minmax(350px, 1fr) minmax(260px, 0.92fr);
+  gap: 22px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
 
-.rail-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.launcher-presence {
+  margin-top: 0;
 }
 
-.rail-nav button {
-  width: 100%;
-  border: 0;
-  border-radius: 6px;
-  padding: 9px 10px;
-  color: var(--text-secondary);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.rail-nav button.active {
-  color: var(--text-primary);
-  background: var(--surface-muted);
-  font-weight: 700;
-}
-
-.rail-nav-icon {
-  width: 24px;
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-family: var(--mono);
-  font-size: 12px;
-  text-align: center;
+.launcher-presence-list {
+  gap: var(--space-2);
 }
 
 .workspace-header {
@@ -297,7 +318,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(226, 232, 240, 0.62);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.07);
 }
 
 .workspace-header-actions {
@@ -336,7 +363,7 @@
   gap: 20px;
   align-items: flex-start;
   min-width: 720px;
-  min-height: 100%;
+  min-height: calc(100% - 66px);
 }
 
 .workspace-placeholder {
@@ -448,9 +475,11 @@
   flex: 1;
   min-height: 100%;
   padding: var(--space-4);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--surface-subtle);
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-panel);
   display: flex;
   flex-direction: column;
   transition: border-color 0.12s ease, background 0.12s ease;
@@ -494,7 +523,7 @@
   margin-bottom: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-md);
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.92);
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: box-shadow 0.12s ease, opacity 0.12s ease;
@@ -556,9 +585,11 @@
 .task-table-wrap {
   min-width: 760px;
   overflow: auto;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-panel);
 }
 
 .task-table {
@@ -664,9 +695,11 @@
 
 .calendar-date-group {
   padding: var(--space-4);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-panel);
 }
 
 .calendar-date-group.overdue {
@@ -1096,14 +1129,24 @@
   min-height: 0;
   padding: 16px;
   overflow-y: auto;
+  background: rgba(255, 255, 255, 0.7);
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.dashboard-context-panel.is-empty {
+  min-height: 0;
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+  backdrop-filter: blur(10px);
 }
 
 .context-panel-empty {
-  min-height: 220px;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: rgba(51, 65, 85, 0.72);
   font-size: 14px;
 }
 

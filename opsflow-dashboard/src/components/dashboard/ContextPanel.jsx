@@ -2,7 +2,13 @@ export default function ContextPanel({ children }) {
   const hasDetails = Boolean(children);
 
   return (
-    <section className="dashboard-context-panel">
+    <section
+      className={
+        hasDetails
+          ? "dashboard-context-panel"
+          : "dashboard-context-panel is-empty"
+      }
+    >
       {hasDetails ? (
         children
       ) : (

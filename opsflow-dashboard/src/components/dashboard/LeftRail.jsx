@@ -1,57 +1,41 @@
-const navItems = [
-  {
-    id: "tasks",
-    label: "Active Tasks",
-    icon: "[]",
-  },
-  {
-    id: "archive",
-    label: "Archived Tasks",
-    icon: "##",
-  },
-  {
-    id: "projects",
-    label: "Projects",
-    icon: "//",
-  },
-  {
-    id: "organizations",
-    label: "Organizations",
-    icon: "::",
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: "**",
-  },
-  {
-    id: "profile",
-    label: "Profile",
-    icon: "@@",
-  },
-];
+function getPresenceName(user) {
+  return user.fullName || user.username || user.email || "User";
+}
 
-export default function LeftRail({
-  activeView,
-  onViewChange,
-}) {
+function getInitials(name) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+export default function LeftRail({ onlineUsers = [] }) {
   return (
     <aside className="dashboard-left-rail">
-      <div className="rail-section-title">Navigation</div>
+      <section className="launcher-presence">
+        <div className="rail-section-title">Members Online</div>
 
-      <nav className="rail-nav">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={activeView === item.id ? "active" : ""}
-            onClick={() => onViewChange(item.id)}
-          >
-            <span className="rail-nav-icon">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </nav>
+        {onlineUsers.length === 0 ? (
+          <div className="presence-empty">No users online</div>
+        ) : (
+          <div className="presence-list launcher-presence-list">
+            {onlineUsers.map((user) => {
+              const name = getPresenceName(user);
+
+              return (
+                <div key={user.id} className="presence-user compact">
+                  <div className="presence-avatar">
+                    {getInitials(name)}
+                  </div>
+                  <span>{name}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </aside>
   );
 }
