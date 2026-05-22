@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import usePersistentState from "../../hooks/usePersistentState";
 import {
   createProject,
   getMyOrganizations,
@@ -13,9 +14,15 @@ const formatDate = (date) =>
 
 export default function ProjectsWorkspace({ token }) {
   const [organizations, setOrganizations] = useState([]);
-  const [selectedOrgId, setSelectedOrgId] = useState("");
+  const [selectedOrgId, setSelectedOrgId] = usePersistentState(
+    "opsflow.projects.selectedOrgId",
+    ""
+  );
   const [projects, setProjects] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = usePersistentState(
+    "opsflow.projects.selectedProjectId",
+    ""
+  );
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -50,7 +57,11 @@ export default function ProjectsWorkspace({ token }) {
 
         const nextOrganizations = res.data || [];
         setOrganizations(nextOrganizations);
-        setSelectedOrgId(nextOrganizations[0]?.id || "");
+        setSelectedOrgId((currentId) =>
+          nextOrganizations.some((org) => org.id === currentId)
+            ? currentId
+            : nextOrganizations[0]?.id || ""
+        );
       } catch (err) {
         if (active) {
           setError("Could not load organizations.");
@@ -89,7 +100,11 @@ export default function ProjectsWorkspace({ token }) {
 
         const nextProjects = res.data || [];
         setProjects(nextProjects);
-        setSelectedProjectId(nextProjects[0]?.id || "");
+        setSelectedProjectId((currentId) =>
+          nextProjects.some((project) => project.id === currentId)
+            ? currentId
+            : nextProjects[0]?.id || ""
+        );
       } catch (err) {
         if (active) {
           setProjects([]);

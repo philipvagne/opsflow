@@ -6,6 +6,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import useTasks from "../hooks/useTasks";
+import usePersistentState from "../hooks/usePersistentState";
 import NotificationBell from "../components/notifications/NotificationBell";
 import KanbanColumn from "../components/kanban/KanbanColumn";
 import TaskModal from "../components/tasks/TaskModal";
@@ -76,12 +77,26 @@ function getTaskTime(task, field) {
 export default function Dashboard({ token, onLogout }) {
   const [notifications, setNotifications] = useState([]);
   const [openNotifications, setOpenNotifications] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [activeView, setActiveView] = useState("tasks");
-  const [activeTaskLayout, setActiveTaskLayout] = useState("kanban");
+  const [selectedTaskId, setSelectedTaskId] = usePersistentState(
+    "opsflow.selectedTaskId",
+    null
+  );
+  const [activeView, setActiveView] = usePersistentState(
+    "opsflow.activeView",
+    "tasks"
+  );
+  const [activeTaskLayout, setActiveTaskLayout] = usePersistentState(
+    "opsflow.activeTaskView",
+    "kanban"
+  );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [taskFilters, setTaskFilters] = useState(defaultTaskFilters);
-  const [contextMode, setContextMode] = useState("empty");
+  const [taskFilters, setTaskFilters] = usePersistentState(
+    "opsflow.taskFilters",
+    defaultTaskFilters
+  );
+  const [contextMode, setContextMode] = useState(
+    selectedTaskId ? "details" : "empty"
+  );
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [taskViewersByTask, setTaskViewersByTask] = useState({});
   const [presenceSocket, setPresenceSocket] = useState(null);
@@ -118,9 +133,16 @@ export default function Dashboard({ token, onLogout }) {
   };
 
   const changeView = (view) => {
-    setActiveView(view);
     setSelectedTaskId(null);
-    setContextMode("empty");
+
+    if (view === "tasks") {
+      setActiveView("tasks");
+      setContextMode("empty");
+      return;
+    }
+
+    setActiveView(view);
+    setContextMode("workspace");
   };
 
   const openCreateTask = () => {
@@ -147,6 +169,7 @@ export default function Dashboard({ token, onLogout }) {
 
   const closeContextPanel = () => {
     setSelectedTaskId(null);
+    setActiveView("tasks");
     setContextMode("empty");
   };
 
@@ -214,6 +237,10 @@ export default function Dashboard({ token, onLogout }) {
     workspaceMeta[activeView] || workspaceMeta.tasks;
   const currentUserId = useMemo(() => getUserIdFromToken(token), [token]);
   const activeTasks = tasks.filter((task) => !task.archivedAt);
+  const normalizedTaskFilters = {
+    ...defaultTaskFilters,
+    ...taskFilters,
+  };
   const assigneeOptions = useMemo(() => {
     const users = new Map();
 
@@ -257,7 +284,7 @@ export default function Dashboard({ token, onLogout }) {
 
   const filteredTasks = useMemo(() => {
     const today = startOfToday();
-    const searchTerm = taskFilters.search.trim().toLowerCase();
+    const searchTerm = normalizedTaskFilters.search.trim().toLowerCase();
 
     return activeTasks
       .filter((task) => {
@@ -272,27 +299,27 @@ export default function Dashboard({ token, onLogout }) {
         }
 
         if (
-          taskFilters.status !== "ALL" &&
-          task.status !== taskFilters.status
+          normalizedTaskFilters.status !== "ALL" &&
+          task.status !== normalizedTaskFilters.status
         ) {
           return false;
         }
 
-        if (taskFilters.assignee === "ME") {
+        if (normalizedTaskFilters.assignee === "ME") {
           if (!currentUserId || !isTaskAssignedTo(task, currentUserId)) {
             return false;
           }
-        } else if (taskFilters.assignee === "UNASSIGNED") {
+        } else if (normalizedTaskFilters.assignee === "UNASSIGNED") {
           if (task.assignments?.length > 0) {
             return false;
           }
-        } else if (taskFilters.assignee !== "ALL") {
-          if (!isTaskAssignedTo(task, taskFilters.assignee)) {
+        } else if (normalizedTaskFilters.assignee !== "ALL") {
+          if (!isTaskAssignedTo(task, normalizedTaskFilters.assignee)) {
             return false;
           }
         }
 
-        if (taskFilters.due === "OVERDUE") {
+        if (normalizedTaskFilters.due === "OVERDUE") {
           if (
             !task.dueDate ||
             task.status === "DONE" ||
@@ -300,26 +327,26 @@ export default function Dashboard({ token, onLogout }) {
           ) {
             return false;
           }
-        } else if (taskFilters.due === "TODAY") {
+        } else if (normalizedTaskFilters.due === "TODAY") {
           if (!task.dueDate || !isSameDay(task.dueDate, today)) {
             return false;
           }
-        } else if (taskFilters.due === "UPCOMING") {
+        } else if (normalizedTaskFilters.due === "UPCOMING") {
           if (
             !task.dueDate ||
             new Date(task.dueDate).setHours(0, 0, 0, 0) < today
           ) {
             return false;
           }
-        } else if (taskFilters.due === "NONE") {
+        } else if (normalizedTaskFilters.due === "NONE") {
           if (task.dueDate) {
             return false;
           }
         }
 
         if (
-          taskFilters.project !== "ALL" &&
-          task.project?.id !== taskFilters.project
+          normalizedTaskFilters.project !== "ALL" &&
+          task.project?.id !== normalizedTaskFilters.project
         ) {
           return false;
         }
@@ -327,15 +354,15 @@ export default function Dashboard({ token, onLogout }) {
         return true;
       })
       .sort((a, b) => {
-        if (taskFilters.sort === "TITLE") {
+        if (normalizedTaskFilters.sort === "TITLE") {
           return (a.title || "").localeCompare(b.title || "");
         }
 
-        if (taskFilters.sort === "UPDATED") {
+        if (normalizedTaskFilters.sort === "UPDATED") {
           return getTaskTime(b, "updatedAt") - getTaskTime(a, "updatedAt");
         }
 
-        if (taskFilters.sort === "CREATED") {
+        if (normalizedTaskFilters.sort === "CREATED") {
           return getTaskTime(b, "createdAt") - getTaskTime(a, "createdAt");
         }
 
@@ -348,7 +375,7 @@ export default function Dashboard({ token, onLogout }) {
 
         return aDue - bDue;
       });
-  }, [activeTasks, currentUserId, taskFilters]);
+  }, [activeTasks, currentUserId, normalizedTaskFilters]);
 
   const filteredTodoTasks = filteredTasks.filter(
     (task) => task.status === "TODO"
@@ -360,13 +387,27 @@ export default function Dashboard({ token, onLogout }) {
     (task) => task.status === "DONE"
   );
   const activeFilterCount = [
-    taskFilters.search.trim(),
-    taskFilters.status !== "ALL",
-    taskFilters.assignee !== "ALL",
-    taskFilters.due !== "ALL",
-    taskFilters.project !== "ALL",
-    taskFilters.sort !== "DUE_DATE",
+    normalizedTaskFilters.search.trim(),
+    normalizedTaskFilters.status !== "ALL",
+    normalizedTaskFilters.assignee !== "ALL",
+    normalizedTaskFilters.due !== "ALL",
+    normalizedTaskFilters.project !== "ALL",
+    normalizedTaskFilters.sort !== "DUE_DATE",
   ].filter(Boolean).length;
+
+  const resetWorkspaceState = () => {
+    window.localStorage.removeItem("opsflow.activeView");
+    window.localStorage.removeItem("opsflow.activeTaskView");
+    window.localStorage.removeItem("opsflow.taskFilters");
+    window.localStorage.removeItem("opsflow.selectedTaskId");
+    window.localStorage.removeItem("opsflow.projects.selectedOrgId");
+    window.localStorage.removeItem("opsflow.projects.selectedProjectId");
+    setActiveView("tasks");
+    setActiveTaskLayout("kanban");
+    setTaskFilters(defaultTaskFilters);
+    setSelectedTaskId(null);
+    setContextMode("empty");
+  };
 
   const renderActiveTasks = () => {
     if (activeTaskLayout === "kanban") {
@@ -445,28 +486,81 @@ export default function Dashboard({ token, onLogout }) {
       );
     }
 
-    if (activeView === "archive") {
-      return <ArchivedTasks token={token} />;
+    if (contextMode !== "workspace") {
+      return null;
     }
 
-    if (activeView === "organizations") {
-      return <OrganizationsWorkspace token={token} />;
-    }
+    const workspaceTitle =
+      activeView === "archive"
+        ? "Archived Tasks"
+        : currentWorkspace.title;
 
-    if (activeView === "projects") {
-      return <ProjectsWorkspace token={token} />;
-    }
+    const renderWorkspaceCardBody = () => {
+      if (activeView === "archive") {
+        return <ArchivedTasks token={token} />;
+      }
 
-    if (activeView !== "tasks") {
-      return (
-        <div className="workspace-placeholder canvas-placeholder">
-          {currentWorkspace.placeholder}
+      if (activeView === "organizations") {
+        return <OrganizationsWorkspace token={token} />;
+      }
+
+      if (activeView === "projects") {
+        return <ProjectsWorkspace token={token} />;
+      }
+
+      if (activeView !== "tasks") {
+        return (
+          <div className="workspace-placeholder canvas-placeholder">
+            <div className="settings-placeholder">
+              <span>{currentWorkspace.placeholder}</span>
+              {activeView === "settings" && (
+                <button
+                  type="button"
+                  className="ui-button ui-button-secondary"
+                  onClick={resetWorkspaceState}
+                >
+                  Reset workspace
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    };
+
+    return (
+      <div className="workspace-card-shell">
+        <div className="workspace-card-header">
+          <div>
+            <div className="dashboard-eyebrow">Workspace</div>
+            <h2>{workspaceTitle}</h2>
+          </div>
+
+          <button
+            type="button"
+            className="task-detail-close"
+            onClick={closeContextPanel}
+          >
+            Close
+          </button>
         </div>
-      );
-    }
 
-    return null;
+        {renderWorkspaceCardBody()}
+      </div>
+    );
   };
+
+useEffect(() => {
+  if (
+    activeView !== "tasks" &&
+    contextMode !== "workspace" &&
+    !selectedTaskId
+  ) {
+    setContextMode("workspace");
+  }
+}, [activeView, contextMode, selectedTaskId]);
 
 useEffect(() => {
   fetchNotifications();
@@ -579,9 +673,15 @@ useEffect(() => {
       return;
     }
 
-    if (event.key === "Escape" && !commandPaletteOpen) {
-      setSelectedTaskId(null);
-      setContextMode("empty");
+    if (event.key === "Escape") {
+      event.preventDefault();
+
+      if (commandPaletteOpen) {
+        setCommandPaletteOpen(false);
+        return;
+      }
+
+      closeContextPanel();
     }
   };
 
@@ -593,11 +693,11 @@ useEffect(() => {
 }, [commandPaletteOpen]);
 
 useEffect(() => {
-  if (selectedTaskId && !selectedTask) {
+  if (tasks.length > 0 && selectedTaskId && !selectedTask) {
     setSelectedTaskId(null);
     setContextMode("empty");
   }
-}, [selectedTaskId, selectedTask]);
+}, [selectedTaskId, selectedTask, setSelectedTaskId, tasks.length]);
 
   // FETCH NOTIFICATIONS
   const fetchNotifications = async () => {
@@ -774,7 +874,7 @@ return (
           title="Active Tasks"
         >
           <TaskProductivityToolbar
-            filters={taskFilters}
+            filters={normalizedTaskFilters}
             onFiltersChange={setTaskFilters}
             assigneeOptions={assigneeOptions}
             projectOptions={projectOptions}
