@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -12,6 +12,7 @@ import TaskModal from "../components/tasks/TaskModal";
 import CreateTaskPanel from "../components/tasks/CreateTaskPanel";
 import TaskTable from "../components/tasks/TaskTable";
 import TaskCalendar from "../components/tasks/TaskCalendar";
+import TaskProductivityToolbar from "../components/tasks/TaskProductivityToolbar";
 import TopBar from "../components/dashboard/TopBar";
 import LeftRail from "../components/dashboard/LeftRail";
 import CenterWorkspace from "../components/dashboard/CenterWorkspace";
@@ -23,12 +24,60 @@ import api from "../api";
 import { createSocket } from "../socket";
 import toast from "react-hot-toast";
 
+const defaultTaskFilters = {
+  search: "",
+  status: "ALL",
+  assignee: "ALL",
+  due: "ALL",
+  sort: "DUE_DATE",
+};
+
+function getUserIdFromToken(token) {
+  try {
+    const payload = token.split(".")[1];
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+      "="
+    );
+    return JSON.parse(atob(paddedPayload)).sub;
+  } catch {
+    return null;
+  }
+}
+
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today.getTime();
+}
+
+function isSameDay(date, timestamp) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value.getTime() === timestamp;
+}
+
+function isTaskAssignedTo(task, userId) {
+  return task.assignments?.some(
+    (assignment) =>
+      assignment.userId === userId ||
+      assignment.user?.id === userId
+  );
+}
+
+function getTaskTime(task, field) {
+  const value = task[field];
+  return value ? new Date(value).getTime() : 0;
+}
+
 export default function Dashboard({ token, onLogout }) {
   const [notifications, setNotifications] = useState([]);
   const [openNotifications, setOpenNotifications] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [activeView, setActiveView] = useState("tasks");
   const [activeTaskLayout, setActiveTaskLayout] = useState("kanban");
+  const [taskFilters, setTaskFilters] = useState(defaultTaskFilters);
   const [contextMode, setContextMode] = useState("empty");
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [taskViewersByTask, setTaskViewersByTask] = useState({});
@@ -37,9 +86,6 @@ export default function Dashboard({ token, onLogout }) {
   
   const {
     tasks,
-    todoTasks,
-    inProgressTasks,
-    doneTasks,
     updateTaskStatus,
     updateTaskDueDate,
     assignTask,
@@ -147,7 +193,140 @@ export default function Dashboard({ token, onLogout }) {
 
   const currentWorkspace =
     workspaceMeta[activeView] || workspaceMeta.tasks;
+  const currentUserId = useMemo(() => getUserIdFromToken(token), [token]);
   const activeTasks = tasks.filter((task) => !task.archivedAt);
+  const assigneeOptions = useMemo(() => {
+    const users = new Map();
+
+    activeTasks.forEach((task) => {
+      task.assignments?.forEach((assignment) => {
+        const user = assignment.user;
+        const id = assignment.userId || user?.id;
+
+        if (!id || users.has(id)) {
+          return;
+        }
+
+        users.set(id, {
+          id,
+          label:
+            user?.fullName ||
+            user?.username ||
+            user?.email ||
+            "Unknown user",
+        });
+      });
+    });
+
+    return Array.from(users.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+  }, [activeTasks]);
+
+  const filteredTasks = useMemo(() => {
+    const today = startOfToday();
+    const searchTerm = taskFilters.search.trim().toLowerCase();
+
+    return activeTasks
+      .filter((task) => {
+        if (searchTerm) {
+          const searchable = `${task.title || ""} ${
+            task.description || ""
+          }`.toLowerCase();
+
+          if (!searchable.includes(searchTerm)) {
+            return false;
+          }
+        }
+
+        if (
+          taskFilters.status !== "ALL" &&
+          task.status !== taskFilters.status
+        ) {
+          return false;
+        }
+
+        if (taskFilters.assignee === "ME") {
+          if (!currentUserId || !isTaskAssignedTo(task, currentUserId)) {
+            return false;
+          }
+        } else if (taskFilters.assignee === "UNASSIGNED") {
+          if (task.assignments?.length > 0) {
+            return false;
+          }
+        } else if (taskFilters.assignee !== "ALL") {
+          if (!isTaskAssignedTo(task, taskFilters.assignee)) {
+            return false;
+          }
+        }
+
+        if (taskFilters.due === "OVERDUE") {
+          if (
+            !task.dueDate ||
+            task.status === "DONE" ||
+            new Date(task.dueDate).setHours(0, 0, 0, 0) >= today
+          ) {
+            return false;
+          }
+        } else if (taskFilters.due === "TODAY") {
+          if (!task.dueDate || !isSameDay(task.dueDate, today)) {
+            return false;
+          }
+        } else if (taskFilters.due === "UPCOMING") {
+          if (
+            !task.dueDate ||
+            new Date(task.dueDate).setHours(0, 0, 0, 0) < today
+          ) {
+            return false;
+          }
+        } else if (taskFilters.due === "NONE") {
+          if (task.dueDate) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (taskFilters.sort === "TITLE") {
+          return (a.title || "").localeCompare(b.title || "");
+        }
+
+        if (taskFilters.sort === "UPDATED") {
+          return getTaskTime(b, "updatedAt") - getTaskTime(a, "updatedAt");
+        }
+
+        if (taskFilters.sort === "CREATED") {
+          return getTaskTime(b, "createdAt") - getTaskTime(a, "createdAt");
+        }
+
+        const aDue = a.dueDate
+          ? new Date(a.dueDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const bDue = b.dueDate
+          ? new Date(b.dueDate).getTime()
+          : Number.MAX_SAFE_INTEGER;
+
+        return aDue - bDue;
+      });
+  }, [activeTasks, currentUserId, taskFilters]);
+
+  const filteredTodoTasks = filteredTasks.filter(
+    (task) => task.status === "TODO"
+  );
+  const filteredInProgressTasks = filteredTasks.filter(
+    (task) => task.status === "IN_PROGRESS"
+  );
+  const filteredDoneTasks = filteredTasks.filter(
+    (task) => task.status === "DONE"
+  );
+  const activeFilterCount = [
+    taskFilters.search.trim(),
+    taskFilters.status !== "ALL",
+    taskFilters.assignee !== "ALL",
+    taskFilters.due !== "ALL",
+    taskFilters.sort !== "DUE_DATE",
+  ].filter(Boolean).length;
 
   const renderActiveTasks = () => {
     if (activeTaskLayout === "kanban") {
@@ -160,21 +339,21 @@ export default function Dashboard({ token, onLogout }) {
             <KanbanColumn
               id="TODO"
               title="TODO"
-              tasks={todoTasks}
+              tasks={filteredTodoTasks}
               setSelectedTask={selectTask}
             />
 
             <KanbanColumn
               id="IN_PROGRESS"
               title="IN PROGRESS"
-              tasks={inProgressTasks}
+              tasks={filteredInProgressTasks}
               setSelectedTask={selectTask}
             />
 
             <KanbanColumn
               id="DONE"
               title="DONE"
-              tasks={doneTasks}
+              tasks={filteredDoneTasks}
               setSelectedTask={selectTask}
             />
           </div>
@@ -185,7 +364,7 @@ export default function Dashboard({ token, onLogout }) {
     if (activeTaskLayout === "table") {
       return (
         <TaskTable
-          tasks={activeTasks}
+          tasks={filteredTasks}
           onSelectTask={selectTask}
         />
       );
@@ -193,7 +372,7 @@ export default function Dashboard({ token, onLogout }) {
 
     return (
       <TaskCalendar
-        tasks={activeTasks}
+        tasks={filteredTasks}
         onSelectTask={selectTask}
       />
     );
@@ -500,6 +679,13 @@ return (
             </>
           }
         >
+          <TaskProductivityToolbar
+            filters={taskFilters}
+            onFiltersChange={setTaskFilters}
+            assigneeOptions={assigneeOptions}
+            activeFilterCount={activeFilterCount}
+            onClear={() => setTaskFilters(defaultTaskFilters)}
+          />
           {renderActiveTasks()}
         </CenterWorkspace>
 
