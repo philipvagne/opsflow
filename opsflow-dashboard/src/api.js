@@ -39,6 +39,13 @@ export const getProject = (token, projectId) =>
     },
   });
 
+export const getProjectTasks = (token, projectId) =>
+  api.get(`/projects/${projectId}/tasks`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
 export const updateProject = (token, projectId, project) =>
   api.patch(`/projects/${projectId}`, project, {
     headers: {

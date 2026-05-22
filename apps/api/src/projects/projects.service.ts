@@ -76,9 +76,45 @@ export class ProjectsService {
   }
 
   private async withTaskCounts(project: any) {
+    const [recentTask, recentNote] = await Promise.all([
+      this.prisma.task.findFirst({
+        where: {
+          projectId: project.id,
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+        select: {
+          updatedAt: true,
+        },
+      }),
+      this.prisma.note.findFirst({
+        where: {
+          projectId: project.id,
+        },
+        orderBy: {
+          updatedAt: 'desc',
+        },
+        select: {
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    const recentActivityAtTimestamp =
+      [recentTask?.updatedAt, recentNote?.updatedAt]
+        .filter(
+          (value): value is NonNullable<typeof value> => value !== undefined,
+        )
+        .map((value) => value.getTime())
+        .sort((left, right) => right - left)[0] ?? null;
+
     return {
       ...project,
       taskCounts: await this.getTaskCounts(project.id),
+      recentActivityAt: recentActivityAtTimestamp
+        ? new Date(recentActivityAtTimestamp)
+        : null,
     };
   }
 

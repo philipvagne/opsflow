@@ -531,7 +531,12 @@ export default function Dashboard({ token, onLogout }) {
       }
 
       if (activeView === "projects") {
-        return <ProjectsWorkspace token={token} />;
+        return (
+          <ProjectsWorkspace
+            token={token}
+            onSelectTask={selectTask}
+          />
+        );
       }
 
       if (activeView === "notes") {

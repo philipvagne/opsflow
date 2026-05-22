@@ -356,8 +356,66 @@ export class TasksService {
       throw new ForbiddenException('Not allowed in this project');
     }
 
-    return this.prisma.task.findMany({
+    const tasks = await this.prisma.task.findMany({
       where: { projectId },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      include: {
+        ...this.taskListInclude(),
+        notes: {
+          select: {
+            createdAt: true,
+            createdById: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        updates: {
+          select: {
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+        noteReadStates: {
+          where: {
+            userId,
+          },
+          select: {
+            lastSeenAt: true,
+          },
+          take: 1,
+        },
+      },
+    });
+
+    return tasks.map((task) => {
+      const lastSeenAt = task.noteReadStates[0]?.lastSeenAt || null;
+      const unreadNoteCount = task.notes.filter((note) => {
+        if (note.createdById === userId) {
+          return false;
+        }
+
+        if (!lastSeenAt) {
+          return true;
+        }
+
+        return new Date(note.createdAt).getTime() > lastSeenAt.getTime();
+      }).length;
+      const recentActivityAt = this.getRecentActivityAt(task);
+
+      return {
+        ...task,
+        unreadNoteCount,
+        hasUnreadNotes: unreadNoteCount > 0,
+        recentNoteActivityAt: task.notes[0]?.createdAt || null,
+        recentActivityAt,
+        isRecentlyActive: this.isRecentlyActive(recentActivityAt),
+      };
     });
   }
 

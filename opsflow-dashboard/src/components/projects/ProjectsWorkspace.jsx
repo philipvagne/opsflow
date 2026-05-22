@@ -1,18 +1,89 @@
 import { useEffect, useMemo, useState } from "react";
-import usePersistentState from "../../hooks/usePersistentState";
 import {
+  createNote,
   createProject,
+  deleteNote,
   getMyOrganizations,
+  getNotes,
   getOrganizationProjects,
+  getProject,
+  getProjectTasks,
+  updateNote,
   updateProject,
 } from "../../api";
+import usePersistentState from "../../hooks/usePersistentState";
+import { subscribeToNoteCreated } from "../../lib/noteEvents";
+import { createSocket } from "../../socket";
 
 const canManageProject = (role) => ["OWNER", "ADMIN"].includes(role);
 
 const formatDate = (date) =>
   date ? new Date(date).toLocaleDateString() : "Unknown";
 
-export default function ProjectsWorkspace({ token }) {
+const formatStatus = (status) =>
+  status === "IN_PROGRESS" ? "In progress" : status;
+
+const getNoteAuthor = (note) =>
+  note.createdBy?.fullName ||
+  note.createdBy?.username ||
+  note.createdBy?.email ||
+  "Unknown";
+
+const getNotePreview = (content) => {
+  const text = content?.trim();
+
+  if (!text) {
+    return "No context yet";
+  }
+
+  return text.length > 140 ? `${text.slice(0, 140)}...` : text;
+};
+
+const compareProjectNotes = (left, right) => {
+  if (left.isPinned !== right.isPinned) {
+    return left.isPinned ? -1 : 1;
+  }
+
+  const leftPinnedAt = left.pinnedAt ? new Date(left.pinnedAt).getTime() : 0;
+  const rightPinnedAt = right.pinnedAt ? new Date(right.pinnedAt).getTime() : 0;
+
+  if (leftPinnedAt !== rightPinnedAt) {
+    return rightPinnedAt - leftPinnedAt;
+  }
+
+  const leftUpdatedAt = left.updatedAt
+    ? new Date(left.updatedAt).getTime()
+    : 0;
+  const rightUpdatedAt = right.updatedAt
+    ? new Date(right.updatedAt).getTime()
+    : 0;
+
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt;
+  }
+
+  return 0;
+};
+
+const getTaskAssigneeLabel = (task) => {
+  const count = task.assignments?.length || 0;
+
+  if (!count) return "Unassigned";
+  if (count === 1) {
+    const user = task.assignments[0].user;
+    return user?.fullName || user?.username || user?.email || "1 assignee";
+  }
+
+  return `${count} assignees`;
+};
+
+const isTaskOverdue = (task) =>
+  task.dueDate &&
+  task.status !== "DONE" &&
+  new Date(task.dueDate).setHours(0, 0, 0, 0) <
+    new Date().setHours(0, 0, 0, 0);
+
+export default function ProjectsWorkspace({ token, onSelectTask }) {
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = usePersistentState(
     "opsflow.projects.selectedOrgId",
@@ -23,14 +94,26 @@ export default function ProjectsWorkspace({ token }) {
     "opsflow.projects.selectedProjectId",
     ""
   );
+  const [projectDetail, setProjectDetail] = useState(null);
+  const [projectTasks, setProjectTasks] = useState([]);
+  const [projectNotes, setProjectNotes] = useState([]);
+  const [selectedProjectNoteId, setSelectedProjectNoteId] = useState("");
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingProjectSurface, setLoadingProjectSurface] = useState(false);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [creatingNote, setCreatingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState(null);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [editNoteTitle, setEditNoteTitle] = useState("");
+  const [editNoteContent, setEditNoteContent] = useState("");
   const [error, setError] = useState("");
 
   const selectedOrganization = useMemo(
@@ -38,10 +121,23 @@ export default function ProjectsWorkspace({ token }) {
     [organizations, selectedOrgId]
   );
   const selectedProject = useMemo(
-    () => projects.find((project) => project.id === selectedProjectId) || null,
-    [projects, selectedProjectId]
+    () => projectDetail || projects.find((project) => project.id === selectedProjectId) || null,
+    [projectDetail, projects, selectedProjectId]
+  );
+  const selectedProjectNote = useMemo(
+    () =>
+      projectNotes.find((note) => note.id === selectedProjectNoteId) || null,
+    [projectNotes, selectedProjectNoteId]
   );
   const canManage = canManageProject(selectedOrganization?.role);
+  const pinnedProjectNotes = useMemo(
+    () => projectNotes.filter((note) => note.isPinned),
+    [projectNotes]
+  );
+  const regularProjectNotes = useMemo(
+    () => projectNotes.filter((note) => !note.isPinned),
+    [projectNotes]
+  );
 
   useEffect(() => {
     let active = true;
@@ -62,7 +158,7 @@ export default function ProjectsWorkspace({ token }) {
             ? currentId
             : nextOrganizations[0]?.id || ""
         );
-      } catch (err) {
+      } catch {
         if (active) {
           setError("Could not load organizations.");
         }
@@ -78,12 +174,18 @@ export default function ProjectsWorkspace({ token }) {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [setSelectedOrgId, token]);
 
   useEffect(() => {
     if (!selectedOrgId) {
-      setProjects([]);
-      setSelectedProjectId("");
+      Promise.resolve().then(() => {
+        setProjects([]);
+        setSelectedProjectId("");
+        setProjectDetail(null);
+        setProjectTasks([]);
+        setProjectNotes([]);
+        setSelectedProjectNoteId("");
+      });
       return;
     }
 
@@ -105,7 +207,7 @@ export default function ProjectsWorkspace({ token }) {
             ? currentId
             : nextProjects[0]?.id || ""
         );
-      } catch (err) {
+      } catch {
         if (active) {
           setProjects([]);
           setSelectedProjectId("");
@@ -123,12 +225,198 @@ export default function ProjectsWorkspace({ token }) {
     return () => {
       active = false;
     };
-  }, [selectedOrgId, token]);
+  }, [selectedOrgId, setSelectedProjectId, token]);
 
   useEffect(() => {
-    setEditName(selectedProject?.name || "");
-    setEditDescription(selectedProject?.description || "");
+    if (!selectedProjectId) {
+      Promise.resolve().then(() => {
+        setProjectDetail(null);
+        setProjectTasks([]);
+        setProjectNotes([]);
+        setSelectedProjectNoteId("");
+      });
+      return;
+    }
+
+    let active = true;
+
+    const loadProjectSurface = async () => {
+      setLoadingProjectSurface(true);
+      setError("");
+
+      try {
+        const [projectRes, tasksRes, notesRes] = await Promise.all([
+          getProject(token, selectedProjectId),
+          getProjectTasks(token, selectedProjectId),
+          getNotes(token, {
+            projectId: selectedProjectId,
+          }),
+        ]);
+
+        if (!active) return;
+
+        const nextProject = projectRes.data || null;
+        const nextTasks = (tasksRes.data || []).filter(
+          (task) => !task.archivedAt
+        );
+        const nextNotes = [...(notesRes.data || [])].sort(compareProjectNotes);
+
+        setProjectDetail(nextProject);
+        setProjectTasks(nextTasks);
+        setProjectNotes(nextNotes);
+        setProjects((current) =>
+          current.map((project) =>
+            project.id === nextProject?.id ? nextProject : project
+          )
+        );
+        setSelectedProjectNoteId((currentId) =>
+          nextNotes.some((note) => note.id === currentId)
+            ? currentId
+            : nextNotes[0]?.id || ""
+        );
+      } catch {
+        if (active) {
+          setProjectDetail(null);
+          setProjectTasks([]);
+          setProjectNotes([]);
+          setSelectedProjectNoteId("");
+          setError("Could not load project surface.");
+        }
+      } finally {
+        if (active) {
+          setLoadingProjectSurface(false);
+        }
+      }
+    };
+
+    loadProjectSurface();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedProjectId, token]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setEditName(selectedProject?.name || "");
+      setEditDescription(selectedProject?.description || "");
+    });
   }, [selectedProject]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setEditNoteTitle(selectedProjectNote?.title || "");
+      setEditNoteContent(selectedProjectNote?.content || "");
+    });
+  }, [selectedProjectNote]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !token) {
+      return;
+    }
+
+    return subscribeToNoteCreated((note) => {
+      if (note.projectId !== selectedProjectId) {
+        return;
+      }
+
+      setProjectNotes((current) => {
+        const exists = current.some((currentNote) => currentNote.id === note.id);
+
+        if (exists) {
+          return current;
+        }
+
+        return [note, ...current].sort(compareProjectNotes);
+      });
+      setSelectedProjectNoteId((currentId) => currentId || note.id);
+    });
+  }, [selectedProjectId, token]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !token) {
+      return;
+    }
+
+    const socket = createSocket(token);
+
+    socket.on("task_updated", (data) => {
+      if (data.project?.id !== selectedProjectId) {
+        return;
+      }
+
+      setProjectTasks((current) => {
+        const isArchived =
+          data.archivedAt !== null && data.archivedAt !== undefined;
+
+        if (isArchived) {
+          return current.filter((task) => task.id !== data.taskId);
+        }
+
+        const existingTask = current.find((task) => task.id === data.taskId);
+        const nextTask = existingTask
+          ? {
+              ...existingTask,
+              status: data.status,
+              title: data.title,
+              description: data.description ?? existingTask.description,
+              dueDate: data.dueDate,
+              archivedAt: data.archivedAt,
+              createdAt: data.createdAt ?? existingTask.createdAt,
+              updatedAt: data.updatedAt ?? existingTask.updatedAt,
+              project: data.project ?? existingTask.project,
+              assignments: data.assignments ?? existingTask.assignments,
+              unreadNoteCount:
+                data.unreadNoteCount ?? existingTask.unreadNoteCount ?? 0,
+              hasUnreadNotes:
+                data.hasUnreadNotes ?? existingTask.hasUnreadNotes ?? false,
+              recentNoteActivityAt:
+                data.recentNoteActivityAt ??
+                existingTask.recentNoteActivityAt ??
+                null,
+              recentActivityAt:
+                data.recentActivityAt ?? existingTask.recentActivityAt ?? null,
+              isRecentlyActive:
+                data.isRecentlyActive ?? existingTask.isRecentlyActive ?? false,
+            }
+          : {
+              id: data.taskId,
+              title: data.title,
+              description: data.description || "",
+              status: data.status,
+              dueDate: data.dueDate,
+              archivedAt: data.archivedAt,
+              createdAt: data.createdAt,
+              updatedAt: data.updatedAt,
+              project: data.project,
+              assignments: data.assignments || [],
+              unreadNoteCount: data.unreadNoteCount ?? 0,
+              hasUnreadNotes: data.hasUnreadNotes ?? false,
+              recentNoteActivityAt: data.recentNoteActivityAt ?? null,
+              recentActivityAt: data.recentActivityAt ?? null,
+              isRecentlyActive: data.isRecentlyActive ?? false,
+            };
+
+        if (existingTask) {
+          return current
+            .map((task) => (task.id === nextTask.id ? nextTask : task))
+            .sort((left, right) =>
+              new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0)
+            );
+        }
+
+        return [...current, nextTask].sort(
+          (left, right) =>
+            new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0)
+        );
+      });
+    });
+
+    return () => {
+      socket.off("task_updated");
+      socket.disconnect();
+    };
+  }, [selectedProjectId, token]);
 
   const handleCreateProject = async (event) => {
     event.preventDefault();
@@ -190,10 +478,100 @@ export default function ProjectsWorkspace({ token }) {
           project.id === updatedProject.id ? updatedProject : project
         )
       );
+      setProjectDetail(updatedProject);
     } catch (err) {
       setError(err.response?.data?.message || "Could not save project.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleCreateProjectNote = async (event) => {
+    event.preventDefault();
+
+    const title = newNoteTitle.trim();
+
+    if (!title || !selectedProject || !selectedOrganization) {
+      setError("Project note title is required.");
+      return;
+    }
+
+    setCreatingNote(true);
+    setError("");
+
+    try {
+      const res = await createNote(token, {
+        title,
+        content: newNoteContent,
+        organizationId: selectedOrganization.id,
+        projectId: selectedProject.id,
+      });
+
+      const createdNote = res.data;
+      setProjectNotes((current) =>
+        [createdNote, ...current].sort(compareProjectNotes)
+      );
+      setSelectedProjectNoteId(createdNote.id);
+      setNewNoteTitle("");
+      setNewNoteContent("");
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Could not create project note."
+      );
+    } finally {
+      setCreatingNote(false);
+    }
+  };
+
+  const handleSaveProjectNote = async () => {
+    const title = editNoteTitle.trim();
+
+    if (!selectedProjectNote || !title) {
+      setError("Project note title is required.");
+      return;
+    }
+
+    setSavingNote(true);
+    setError("");
+
+    try {
+      const res = await updateNote(token, selectedProjectNote.id, {
+        title,
+        content: editNoteContent,
+      });
+
+      setProjectNotes((current) =>
+        current
+          .map((note) => (note.id === res.data.id ? res.data : note))
+          .sort(compareProjectNotes)
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Could not save project note."
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleDeleteProjectNote = async (noteId) => {
+    setDeletingNoteId(noteId);
+    setError("");
+
+    try {
+      await deleteNote(token, noteId);
+      setProjectNotes((current) =>
+        current.filter((note) => note.id !== noteId)
+      );
+      setSelectedProjectNoteId((currentId) =>
+        currentId === noteId ? "" : currentId
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Could not delete project note."
+      );
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -306,13 +684,23 @@ export default function ProjectsWorkspace({ token }) {
       </section>
 
       <section className="project-panel project-detail-panel">
-        {selectedProject ? (
+        {loadingProjectSurface ? (
+          <div className="workspace-placeholder">Loading project surface...</div>
+        ) : selectedProject ? (
           <>
             <div className="project-panel-header">
               <div>
-                <div className="dashboard-eyebrow">Project Detail</div>
+                <div className="dashboard-eyebrow">Project Surface</div>
                 <h4>{selectedProject.name}</h4>
               </div>
+
+              <button
+                type="button"
+                className="task-detail-close"
+                onClick={() => setSelectedProjectId("")}
+              >
+                Close
+              </button>
             </div>
 
             <div className="project-detail-stats">
@@ -330,8 +718,13 @@ export default function ProjectsWorkspace({ token }) {
               </div>
             </div>
 
-            <div className="muted-text">
-              Created {formatDate(selectedProject.createdAt)}
+            <div className="project-detail-meta">
+              <span>Created {formatDate(selectedProject.createdAt)}</span>
+              {selectedProject.recentActivityAt ? (
+                <span>
+                  Recent activity {formatDate(selectedProject.recentActivityAt)}
+                </span>
+              ) : null}
             </div>
 
             {canManage ? (
@@ -352,7 +745,7 @@ export default function ProjectsWorkspace({ token }) {
                     onChange={(event) =>
                       setEditDescription(event.target.value)
                     }
-                    rows={4}
+                    rows={3}
                   />
                 </label>
                 <button
@@ -363,16 +756,232 @@ export default function ProjectsWorkspace({ token }) {
                   {saving ? "Saving..." : "Save project"}
                 </button>
               </form>
+            ) : selectedProject.description ? (
+              <p className="project-surface-description">
+                {selectedProject.description}
+              </p>
             ) : (
               <p className="muted-text">
                 You can view this project. Owners and admins can edit it.
               </p>
             )}
+
+            <section className="project-surface-section">
+              <div className="project-surface-section-header">
+                <div>
+                  <div className="dashboard-eyebrow">Project Tasks</div>
+                  <h5>Work in this project</h5>
+                </div>
+              </div>
+
+              {projectTasks.length === 0 ? (
+                <div className="muted-text">
+                  No active tasks in this project yet.
+                </div>
+              ) : (
+                <div className="project-task-list">
+                  {projectTasks.map((task) => (
+                    <button
+                      key={task.id}
+                      type="button"
+                      className="project-task-row"
+                      onClick={() => onSelectTask?.(task)}
+                    >
+                      <div className="project-task-row-main">
+                        <strong>{task.title}</strong>
+                        <div className="project-task-meta">
+                          <span>{formatStatus(task.status)}</span>
+                          <span>{getTaskAssigneeLabel(task)}</span>
+                          {task.dueDate ? (
+                            <span
+                              className={
+                                isTaskOverdue(task)
+                                  ? "task-table-date overdue"
+                                  : "task-table-date"
+                              }
+                            >
+                              Due {formatDate(task.dueDate)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      {task.unreadNoteCount > 0 ? (
+                        <span className="task-awareness-text">
+                          {task.unreadNoteCount} new note
+                          {task.unreadNoteCount > 1 ? "s" : ""}
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="project-surface-section">
+              <div className="project-surface-section-header">
+                <div>
+                  <div className="dashboard-eyebrow">Project Notes</div>
+                  <h5>Context and references</h5>
+                </div>
+              </div>
+
+              <form className="project-form" onSubmit={handleCreateProjectNote}>
+                <label className="form-label">
+                  New project note
+                  <input
+                    className="ui-input"
+                    value={newNoteTitle}
+                    onChange={(event) => setNewNoteTitle(event.target.value)}
+                    placeholder="Note title"
+                  />
+                </label>
+                <label className="form-label">
+                  Content
+                  <textarea
+                    className="ui-textarea"
+                    value={newNoteContent}
+                    onChange={(event) => setNewNoteContent(event.target.value)}
+                    placeholder="Reference, decision, or operational context..."
+                    rows={3}
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="ui-button ui-button-primary"
+                  disabled={creatingNote}
+                >
+                  {creatingNote ? "Creating..." : "Create note"}
+                </button>
+              </form>
+
+              {projectNotes.length === 0 ? (
+                <div className="muted-text">
+                  No project notes yet.
+                </div>
+              ) : (
+                <>
+                  <div className="project-note-list">
+                    {pinnedProjectNotes.length > 0 && (
+                      <div className="project-note-group">
+                        <div className="dashboard-eyebrow">Pinned</div>
+                        {pinnedProjectNotes.map((note) => (
+                          <button
+                            key={note.id}
+                            type="button"
+                            className={
+                              note.id === selectedProjectNoteId
+                                ? "task-note-card active"
+                                : "task-note-card"
+                            }
+                            onClick={() => setSelectedProjectNoteId(note.id)}
+                          >
+                            <div className="task-note-meta">
+                              <span className="task-note-pin-pill">Pinned</span>
+                              {note.kind === "REFERENCE" && (
+                                <span className="task-note-kind-pill">
+                                  Reference
+                                </span>
+                              )}
+                              <span>{formatDate(note.updatedAt)}</span>
+                              <span>{getNoteAuthor(note)}</span>
+                            </div>
+                            <strong>{note.title}</strong>
+                            <p>{getNotePreview(note.content)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {regularProjectNotes.length > 0 && (
+                      <div className="project-note-group">
+                        <div className="dashboard-eyebrow">
+                          {pinnedProjectNotes.length > 0 ? "Notes" : "All Notes"}
+                        </div>
+                        {regularProjectNotes.map((note) => (
+                          <button
+                            key={note.id}
+                            type="button"
+                            className={
+                              note.id === selectedProjectNoteId
+                                ? "task-note-card active"
+                                : "task-note-card"
+                            }
+                            onClick={() => setSelectedProjectNoteId(note.id)}
+                          >
+                            <div className="task-note-meta">
+                              {note.kind === "REFERENCE" && (
+                                <span className="task-note-kind-pill">
+                                  Reference
+                                </span>
+                              )}
+                              <span>{formatDate(note.updatedAt)}</span>
+                              <span>{getNoteAuthor(note)}</span>
+                            </div>
+                            <strong>{note.title}</strong>
+                            <p>{getNotePreview(note.content)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedProjectNote ? (
+                    <div className="task-note-editor project-note-editor">
+                      <label className="form-label">
+                        Title
+                        <input
+                          className="ui-input"
+                          value={editNoteTitle}
+                          onChange={(event) =>
+                            setEditNoteTitle(event.target.value)
+                          }
+                        />
+                      </label>
+
+                      <label className="form-label">
+                        Content
+                        <textarea
+                          className="ui-textarea task-note-editor-textarea"
+                          value={editNoteContent}
+                          onChange={(event) =>
+                            setEditNoteContent(event.target.value)
+                          }
+                          rows={6}
+                        />
+                      </label>
+
+                      <div className="button-row">
+                        <button
+                          type="button"
+                          className="ui-button ui-button-dark"
+                          onClick={handleSaveProjectNote}
+                          disabled={savingNote}
+                        >
+                          {savingNote ? "Saving..." : "Save note"}
+                        </button>
+                        <button
+                          type="button"
+                          className="ui-button ui-button-danger"
+                          onClick={() =>
+                            handleDeleteProjectNote(selectedProjectNote.id)
+                          }
+                          disabled={deletingNoteId === selectedProjectNote.id}
+                        >
+                          {deletingNoteId === selectedProjectNote.id
+                            ? "Deleting..."
+                            : "Delete note"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
           </>
         ) : (
           <div className="org-empty-state">
             <h4>Select a project</h4>
-            <p>Project details and task counts will appear here.</p>
+            <p>Project tasks, notes, and context will appear here.</p>
           </div>
         )}
       </section>
