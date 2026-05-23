@@ -141,11 +141,13 @@ export default function ProjectsWorkspace({
   const [savingNote, setSavingNote] = useState(false);
   const [creatingNote, setCreatingNote] = useState(false);
   const [deletingNoteId, setDeletingNoteId] = useState(null);
+  const [showProjectEditForm, setShowProjectEditForm] = useState(false);
   const [showProjectCreateForm, setShowProjectCreateForm] = useState(false);
   const [showProjectTaskCreateForm, setShowProjectTaskCreateForm] =
     useState(false);
   const [showProjectNoteCreateForm, setShowProjectNoteCreateForm] =
     useState(false);
+  const [editingProjectNoteId, setEditingProjectNoteId] = useState("");
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -363,6 +365,8 @@ export default function ProjectsWorkspace({
     setNewTaskDueDate("");
     setNewNoteTitle("");
     setNewNoteContent("");
+    setShowProjectEditForm(false);
+    setEditingProjectNoteId("");
   }, [selectedProjectId]);
 
   useEffect(() => {
@@ -374,6 +378,8 @@ export default function ProjectsWorkspace({
   useEffect(() => {
     setShowProjectTaskCreateForm(false);
     setShowProjectNoteCreateForm(false);
+    setShowProjectEditForm(false);
+    setEditingProjectNoteId("");
   }, [activeProjectTab]);
 
   useEffect(() => {
@@ -618,6 +624,7 @@ export default function ProjectsWorkspace({
         )
       );
       setProjectDetail(updatedProject);
+      setShowProjectEditForm(false);
     } catch (err) {
       setError(err.response?.data?.message || "Could not save project.");
     } finally {
@@ -794,6 +801,7 @@ export default function ProjectsWorkspace({
           .map((note) => (note.id === res.data.id ? res.data : note))
           .sort(compareProjectNotes)
       );
+      setEditingProjectNoteId("");
     } catch (err) {
       setError(
         err.response?.data?.message || "Could not save project note."
@@ -1075,42 +1083,68 @@ export default function ProjectsWorkspace({
                   </div>
 
                   {canManage ? (
-                    <form className="project-form" onSubmit={handleUpdateProject}>
-                      <label className="form-label">
-                        Name
-                        <input
-                          className="ui-input"
-                          value={editName}
-                          onChange={(event) => setEditName(event.target.value)}
-                        />
-                      </label>
-                      <label className="form-label">
-                        Description
-                        <textarea
-                          className="ui-textarea"
-                          value={editDescription}
-                          onChange={(event) =>
-                            setEditDescription(event.target.value)
-                          }
-                          rows={3}
-                        />
-                      </label>
-                      <button
-                        type="submit"
-                        className="ui-button ui-button-dark"
-                        disabled={saving}
+                    showProjectEditForm ? (
+                      <form
+                        className="project-form contextual-create-surface"
+                        onSubmit={handleUpdateProject}
                       >
-                        {saving ? "Saving..." : "Save project"}
+                        <label className="form-label">
+                          Name
+                          <input
+                            className="ui-input"
+                            value={editName}
+                            onChange={(event) => setEditName(event.target.value)}
+                          />
+                        </label>
+                        <label className="form-label">
+                          Description
+                          <textarea
+                            className="ui-textarea"
+                            value={editDescription}
+                            onChange={(event) =>
+                              setEditDescription(event.target.value)
+                            }
+                            rows={3}
+                          />
+                        </label>
+                        <div className="button-row contextual-create-actions">
+                          <button
+                            type="submit"
+                            className="ui-button ui-button-dark"
+                            disabled={saving}
+                          >
+                            {saving ? "Saving..." : "Save project"}
+                          </button>
+                          <button
+                            type="button"
+                            className="ui-button ui-button-secondary"
+                            onClick={() => {
+                              setShowProjectEditForm(false);
+                              setEditName(selectedProject?.name || "");
+                              setEditDescription(
+                                selectedProject?.description || ""
+                              );
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        className="contextual-create-button"
+                        onClick={() => setShowProjectEditForm(true)}
+                      >
+                        Edit Project
                       </button>
-                    </form>
+                    )
                   ) : selectedProject.description ? (
                     <p className="project-surface-description">
                       {selectedProject.description}
                     </p>
                   ) : (
-                    <p className="muted-text">
-                      You can view this project. Owners and admins can edit it.
-                    </p>
+                    <p className="muted-text">No project description yet.</p>
                   )}
                 </div>
               ) : null}
@@ -1343,6 +1377,34 @@ export default function ProjectsWorkspace({
                                   </div>
                                   <strong>{note.title}</strong>
                                   <p>{getNotePreview(note.content)}</p>
+                                  {canContribute ? (
+                                    <div className="task-note-card-actions">
+                                      <button
+                                        type="button"
+                                        className="contextual-card-action"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setSelectedProjectNoteId(note.id);
+                                          setEditingProjectNoteId(note.id);
+                                        }}
+                                      >
+                                        Edit Note
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="contextual-card-action danger"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDeleteProjectNote(note.id);
+                                        }}
+                                        disabled={deletingNoteId === note.id}
+                                      >
+                                        {deletingNoteId === note.id
+                                          ? "Deleting..."
+                                          : "Delete Note"}
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </button>
                               ))}
                             </div>
@@ -1375,6 +1437,34 @@ export default function ProjectsWorkspace({
                                   </div>
                                   <strong>{note.title}</strong>
                                   <p>{getNotePreview(note.content)}</p>
+                                  {canContribute ? (
+                                    <div className="task-note-card-actions">
+                                      <button
+                                        type="button"
+                                        className="contextual-card-action"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setSelectedProjectNoteId(note.id);
+                                          setEditingProjectNoteId(note.id);
+                                        }}
+                                      >
+                                        Edit Note
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="contextual-card-action danger"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDeleteProjectNote(note.id);
+                                        }}
+                                        disabled={deletingNoteId === note.id}
+                                      >
+                                        {deletingNoteId === note.id
+                                          ? "Deleting..."
+                                          : "Delete Note"}
+                                      </button>
+                                    </div>
+                                  ) : null}
                                 </button>
                               ))}
                             </div>
@@ -1382,7 +1472,8 @@ export default function ProjectsWorkspace({
                         </div>
                       </div>
 
-                      {selectedProjectNote ? (
+                      {selectedProjectNote &&
+                      editingProjectNoteId === selectedProjectNote.id ? (
                         <div className="task-note-editor project-note-editor">
                           <label className="form-label">
                             Title
@@ -1407,7 +1498,7 @@ export default function ProjectsWorkspace({
                             />
                           </label>
 
-                          <div className="button-row">
+                          <div className="button-row contextual-create-actions">
                             <button
                               type="button"
                               className="ui-button ui-button-dark"
@@ -1418,15 +1509,16 @@ export default function ProjectsWorkspace({
                             </button>
                             <button
                               type="button"
-                              className="ui-button ui-button-danger"
-                              onClick={() =>
-                                handleDeleteProjectNote(selectedProjectNote.id)
-                              }
-                              disabled={deletingNoteId === selectedProjectNote.id}
+                              className="ui-button ui-button-secondary"
+                              onClick={() => {
+                                setEditingProjectNoteId("");
+                                setEditNoteTitle(selectedProjectNote?.title || "");
+                                setEditNoteContent(
+                                  selectedProjectNote?.content || ""
+                                );
+                              }}
                             >
-                              {deletingNoteId === selectedProjectNote.id
-                                ? "Deleting..."
-                                : "Delete note"}
+                              Cancel
                             </button>
                           </div>
                         </div>

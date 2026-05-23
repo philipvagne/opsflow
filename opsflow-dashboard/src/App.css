@@ -2396,6 +2396,47 @@ button:active:not(:disabled),
   margin-top: 12px;
 }
 
+.task-note-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.contextual-card-action {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  background: rgba(248, 250, 252, 0.82);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  transition:
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast),
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.contextual-card-action:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-card);
+}
+
+.contextual-card-action.danger {
+  color: var(--danger);
+  background: rgba(254, 242, 242, 0.86);
+}
+
+.contextual-card-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .project-error {
   grid-column: 1 / -1;
   margin: 0;
