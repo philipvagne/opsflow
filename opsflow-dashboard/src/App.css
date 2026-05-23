@@ -1909,6 +1909,8 @@ button:active:not(:disabled),
 }
 
 .organizations-workspace {
+  position: relative;
+  isolation: isolate;
   display: grid;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
   gap: 18px;
@@ -2032,6 +2034,32 @@ button:active:not(:disabled),
   gap: 18px;
 }
 
+.organization-members-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.organization-members-control {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.organization-members-control span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.organization-members-control-compact {
+  flex: 0 0 160px;
+}
+
 .organization-projects-surface {
   min-height: 100%;
 }
@@ -2098,6 +2126,34 @@ button:active:not(:disabled),
 
 .organization-foundation-copy {
   max-width: 58ch;
+}
+
+.organization-settings-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.organization-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.organization-settings-row span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.organization-settings-row strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: right;
 }
 
 .org-empty-state h4 {
@@ -4091,6 +4147,10 @@ button:active:not(:disabled),
 
   .organization-member-form {
     grid-template-columns: 1fr;
+  }
+
+  .organization-members-control-compact {
+    flex-basis: 100%;
   }
 
   .dashboard-right-context {

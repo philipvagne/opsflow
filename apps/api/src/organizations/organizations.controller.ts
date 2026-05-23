@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   Req,
@@ -53,6 +54,20 @@ export class OrganizationsController {
       orgId,
       body.emailOrUsername || body.email,
       body.role,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':orgId/members/:membershipId')
+  removeMember(
+    @Req() req: any,
+    @Param('orgId') orgId: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.organizationsService.removeMember(
+      req.user.sub,
+      orgId,
+      membershipId,
     );
   }
 

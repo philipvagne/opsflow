@@ -5,10 +5,12 @@ import {
   getMyOrganizations,
   getOrganizationMembers,
   getOrganizationProjects,
+  removeOrganizationMember,
 } from "../../api";
 import usePersistentState from "../../hooks/usePersistentState";
 
 const manageableRoles = ["OWNER", "ADMIN"];
+const memberRoleOptions = ["ALL", "OWNER", "ADMIN", "MEMBER", "VIEWER"];
 
 const displayUserName = (user) =>
   user?.fullName || user?.username || user?.email || "Unknown user";
@@ -32,6 +34,14 @@ const getOrganizationInitials = (organization) => {
   return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 };
 
+const getMemberRoleRank = (role) => {
+  if (role === "OWNER") return 0;
+  if (role === "ADMIN") return 1;
+  if (role === "MEMBER") return 2;
+  if (role === "VIEWER") return 3;
+  return 4;
+};
+
 export default function OrganizationsWorkspace({ token }) {
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = usePersistentState(
@@ -53,8 +63,19 @@ export default function OrganizationsWorkspace({ token }) {
   const [organizationSlug, setOrganizationSlug] = useState("");
   const [memberLookup, setMemberLookup] = useState("");
   const [memberRole, setMemberRole] = useState("MEMBER");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberRoleFilter, setMemberRoleFilter] = useState("ALL");
   const [creatingOrganization, setCreatingOrganization] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
+  const [removingMember, setRemovingMember] = useState(false);
+  const [showOrganizationCreateForm, setShowOrganizationCreateForm] =
+    useState(false);
+  const [showOrganizationMemberAddForm, setShowOrganizationMemberAddForm] =
+    useState(false);
+  const [showOrganizationMemberRemoveForm, setShowOrganizationMemberRemoveForm] =
+    useState(false);
+  const [selectedRemovalMembershipId, setSelectedRemovalMembershipId] =
+    useState("");
   const [error, setError] = useState("");
 
   const selectedOrganization = useMemo(
@@ -67,6 +88,58 @@ export default function OrganizationsWorkspace({ token }) {
   const canManageSelectedOrganization =
     selectedOrganization &&
     manageableRoles.includes(selectedOrganization.role);
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+
+    return [...members]
+      .filter((membership) => {
+        if (
+          memberRoleFilter !== "ALL" &&
+          membership.role !== memberRoleFilter
+        ) {
+          return false;
+        }
+
+        if (!query) {
+          return true;
+        }
+
+        const name = displayUserName(membership.user).toLowerCase();
+        const email = membership.user?.email?.toLowerCase() || "";
+        const username = membership.user?.username?.toLowerCase() || "";
+
+        return (
+          name.includes(query) ||
+          email.includes(query) ||
+          username.includes(query)
+        );
+      })
+      .sort((left, right) => {
+        const roleDelta =
+          getMemberRoleRank(left.role) - getMemberRoleRank(right.role);
+
+        if (roleDelta !== 0) {
+          return roleDelta;
+        }
+
+        return displayUserName(left.user).localeCompare(
+          displayUserName(right.user)
+        );
+      });
+  }, [memberRoleFilter, memberSearch, members]);
+  const selectedRemovalMember = useMemo(
+    () =>
+      members.find((membership) => membership.id === selectedRemovalMembershipId) ||
+      null,
+    [members, selectedRemovalMembershipId]
+  );
+  const activeOrganizationPopup = showOrganizationCreateForm
+    ? "create-organization"
+    : showOrganizationMemberAddForm
+      ? "add-member"
+      : showOrganizationMemberRemoveForm && selectedRemovalMember
+        ? "remove-member"
+        : "";
 
   useEffect(() => {
     let isMounted = true;
@@ -155,6 +228,35 @@ export default function OrganizationsWorkspace({ token }) {
   }, [selectedOrgId, token]);
 
   useEffect(() => {
+    setShowOrganizationCreateForm(false);
+    setShowOrganizationMemberAddForm(false);
+    setShowOrganizationMemberRemoveForm(false);
+    setSelectedRemovalMembershipId("");
+  }, [selectedOrgId, activeOrganizationTab]);
+
+  useEffect(() => {
+    if (!activeOrganizationPopup) {
+      return undefined;
+    }
+
+    const handlePopupEscape = (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeOrganizationPopup();
+    };
+
+    window.addEventListener("keydown", handlePopupEscape, true);
+
+    return () => {
+      window.removeEventListener("keydown", handlePopupEscape, true);
+    };
+  }, [activeOrganizationPopup]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadProjects = async () => {
@@ -228,6 +330,7 @@ export default function OrganizationsWorkspace({ token }) {
       setOrganizations((current) => [...current, createdOrganization]);
       setSelectedOrgId(createdOrganization.id);
       setActiveOrganizationTab("overview");
+      setShowOrganizationCreateForm(false);
       setOrganizationName("");
       setOrganizationSlug("");
     } catch (err) {
@@ -268,6 +371,7 @@ export default function OrganizationsWorkspace({ token }) {
         }));
         return nextMembers;
       });
+      setShowOrganizationMemberAddForm(false);
       setMemberLookup("");
       setMemberRole("MEMBER");
     } catch (err) {
@@ -275,6 +379,48 @@ export default function OrganizationsWorkspace({ token }) {
     } finally {
       setAddingMember(false);
     }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!selectedOrgId || !selectedRemovalMembershipId) {
+      return;
+    }
+
+    setRemovingMember(true);
+    setError("");
+
+    try {
+      await removeOrganizationMember(
+        token,
+        selectedOrgId,
+        selectedRemovalMembershipId
+      );
+
+      setMembers((current) => {
+        const nextMembers = current.filter(
+          (membership) => membership.id !== selectedRemovalMembershipId
+        );
+        setMemberCountsByOrgId((counts) => ({
+          ...counts,
+          [selectedOrgId]: nextMembers.length,
+        }));
+        return nextMembers;
+      });
+      closeOrganizationPopup();
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Could not remove organization member."
+      );
+    } finally {
+      setRemovingMember(false);
+    }
+  };
+
+  const closeOrganizationPopup = () => {
+    setShowOrganizationCreateForm(false);
+    setShowOrganizationMemberAddForm(false);
+    setShowOrganizationMemberRemoveForm(false);
+    setSelectedRemovalMembershipId("");
   };
 
   const handleSelectOrganization = (organizationId) => {
@@ -304,35 +450,17 @@ export default function OrganizationsWorkspace({ token }) {
           <div className="organization-collection-controls">
             <div className="organization-create-block">
               <div className="dashboard-eyebrow">Create</div>
-              <form className="organization-create-form" onSubmit={handleCreateOrganization}>
-                <label className="form-label">
-                  Organization name
-                  <input
-                    className="ui-input"
-                    value={organizationName}
-                    onChange={(event) => setOrganizationName(event.target.value)}
-                    placeholder="Acme Operations"
-                  />
-                </label>
-
-                <label className="form-label">
-                  Slug optional
-                  <input
-                    className="ui-input"
-                    value={organizationSlug}
-                    onChange={(event) => setOrganizationSlug(event.target.value)}
-                    placeholder="acme-operations"
-                  />
-                </label>
-
+              <div className="contextual-create-block">
                 <button
-                  type="submit"
                   className="contextual-create-button"
-                  disabled={creatingOrganization}
+                  type="button"
+                  onClick={() => {
+                    setShowOrganizationCreateForm(true);
+                  }}
                 >
-                  {creatingOrganization ? "Creating..." : "+ Create Organization"}
+                  + Create Organization
                 </button>
-              </form>
+              </div>
             </div>
           </div>
 
@@ -546,9 +674,54 @@ export default function OrganizationsWorkspace({ token }) {
                       No members are connected to this organization yet.
                     </div>
                   ) : (
+                    <div className="organization-members-toolbar">
+                      <label className="organization-members-control">
+                        <span>Search</span>
+                        <input
+                          className="ui-input"
+                          value={memberSearch}
+                          onChange={(event) => setMemberSearch(event.target.value)}
+                          placeholder="Name, email, or username"
+                        />
+                      </label>
+                      <label className="organization-members-control organization-members-control-compact">
+                        <span>Role</span>
+                        <select
+                          className="ui-input"
+                          value={memberRoleFilter}
+                          onChange={(event) => setMemberRoleFilter(event.target.value)}
+                        >
+                          {memberRoleOptions.map((role) => (
+                            <option key={role} value={role}>
+                              {role === "ALL" ? "All roles" : role}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {canManageSelectedOrganization ? (
+                        <button
+                          type="button"
+                          className="contextual-create-button"
+                          onClick={() => {
+                            closeOrganizationPopup();
+                            setShowOrganizationMemberAddForm(true);
+                          }}
+                        >
+                          Add Member
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {!loadingMembers && members.length > 0 ? (
+                    filteredMembers.length === 0 ? (
+                      <div className="muted-text">
+                        No members match the current search or role filter.
+                      </div>
+                    ) : (
                     <div className="project-members-list-shell">
                       <div className="project-members-list">
-                        {members.map((membership) => (
+                        {filteredMembers.map((membership) => (
                           <div key={membership.id} className="project-member-row">
                             <span className="project-member-avatar project-member-avatar-large">
                               {getOrganizationInitials({
@@ -568,48 +741,25 @@ export default function OrganizationsWorkspace({ token }) {
                                 {membership.role}
                               </span>
                             ) : null}
+
+                            {canManageSelectedOrganization ? (
+                              <button
+                                type="button"
+                                className="contextual-card-action danger"
+                                onClick={() => {
+                                  closeOrganizationPopup();
+                                  setSelectedRemovalMembershipId(membership.id);
+                                  setShowOrganizationMemberRemoveForm(true);
+                                }}
+                              >
+                                Remove
+                              </button>
+                            ) : null}
                           </div>
                         ))}
                       </div>
                     </div>
-                  )}
-
-                  {canManageSelectedOrganization ? (
-                    <form
-                      className="organization-member-form"
-                      onSubmit={handleAddMember}
-                    >
-                      <label className="form-label">
-                        Add existing user
-                        <input
-                          className="ui-input"
-                          value={memberLookup}
-                          onChange={(event) => setMemberLookup(event.target.value)}
-                          placeholder="email@example.com or username"
-                        />
-                      </label>
-
-                      <label className="form-label">
-                        Role
-                        <select
-                          className="ui-input"
-                          value={memberRole}
-                          onChange={(event) => setMemberRole(event.target.value)}
-                        >
-                          <option value="MEMBER">Member</option>
-                          <option value="ADMIN">Admin</option>
-                          <option value="VIEWER">Viewer</option>
-                        </select>
-                      </label>
-
-                      <button
-                        type="submit"
-                        className="contextual-create-button"
-                        disabled={addingMember}
-                      >
-                        {addingMember ? "Adding..." : "+ Add Member"}
-                      </button>
-                    </form>
+                    )
                   ) : null}
                 </section>
               ) : null}
@@ -667,10 +817,24 @@ export default function OrganizationsWorkspace({ token }) {
                     </div>
                   </div>
 
+                  <div className="organization-settings-summary">
+                    <div className="organization-settings-row">
+                      <span>Name</span>
+                      <strong>{selectedOrganization.name}</strong>
+                    </div>
+                    <div className="organization-settings-row">
+                      <span>Slug</span>
+                      <strong>{selectedOrganization.slug || "Default"}</strong>
+                    </div>
+                    <div className="organization-settings-row">
+                      <span>Your role</span>
+                      <strong>{selectedOrganization.role}</strong>
+                    </div>
+                  </div>
+
                   <p className="muted-text organization-foundation-copy">
-                    This foundation tab keeps room for future organization
-                    settings without turning the workspace into a stacked
-                    management page yet.
+                    Organization editing is not currently supported in this
+                    workspace, so settings stay read-first for now.
                   </p>
                 </section>
               ) : null}
@@ -686,6 +850,170 @@ export default function OrganizationsWorkspace({ token }) {
           </div>
         )}
       </section>
+
+      {activeOrganizationPopup ? (
+        <div className="project-workspace-popup-layer" role="presentation">
+          <button
+            type="button"
+            className="project-workspace-popup-backdrop"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              closeOrganizationPopup();
+            }}
+            aria-label="Close workspace popup"
+          />
+
+          <div
+            className="project-workspace-popup-shell"
+            onMouseDown={(event) => {
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            {activeOrganizationPopup === "create-organization" ? (
+              <form
+                className="project-form contextual-create-surface workspace-action-popup"
+                onSubmit={handleCreateOrganization}
+              >
+                <div className="workspace-action-popup-header">
+                  <div className="dashboard-eyebrow">Create</div>
+                  <strong>New Organization</strong>
+                </div>
+                <label className="form-label">
+                  Organization name
+                  <input
+                    className="ui-input"
+                    value={organizationName}
+                    onChange={(event) => setOrganizationName(event.target.value)}
+                    placeholder="Acme Operations"
+                  />
+                </label>
+
+                <label className="form-label">
+                  Slug optional
+                  <input
+                    className="ui-input"
+                    value={organizationSlug}
+                    onChange={(event) => setOrganizationSlug(event.target.value)}
+                    placeholder="acme-operations"
+                  />
+                </label>
+
+                <div className="button-row contextual-create-actions">
+                  <button
+                    type="submit"
+                    className="ui-button ui-button-primary"
+                    disabled={creatingOrganization}
+                  >
+                    {creatingOrganization ? "Creating..." : "Save organization"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-button ui-button-secondary"
+                    onClick={closeOrganizationPopup}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeOrganizationPopup === "add-member" ? (
+              <form
+                className="project-form contextual-create-surface workspace-action-popup"
+                onSubmit={handleAddMember}
+              >
+                <div className="workspace-action-popup-header">
+                  <div className="dashboard-eyebrow">Members</div>
+                  <strong>Add member to {selectedOrganization?.name}</strong>
+                </div>
+
+                <label className="form-label">
+                  Add existing user
+                  <input
+                    className="ui-input"
+                    value={memberLookup}
+                    onChange={(event) => setMemberLookup(event.target.value)}
+                    placeholder="email@example.com or username"
+                  />
+                </label>
+
+                <label className="form-label">
+                  Role
+                  <select
+                    className="ui-input"
+                    value={memberRole}
+                    onChange={(event) => setMemberRole(event.target.value)}
+                  >
+                    <option value="MEMBER">Member</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="VIEWER">Viewer</option>
+                  </select>
+                </label>
+
+                <div className="button-row contextual-create-actions">
+                  <button
+                    type="submit"
+                    className="ui-button ui-button-primary"
+                    disabled={addingMember}
+                  >
+                    {addingMember ? "Adding..." : "Add member"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-button ui-button-secondary"
+                    onClick={closeOrganizationPopup}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {activeOrganizationPopup === "remove-member" &&
+            selectedOrganization &&
+            selectedRemovalMember ? (
+              <div className="project-form contextual-create-surface workspace-action-popup">
+                <div className="workspace-action-popup-header">
+                  <div className="dashboard-eyebrow">Members</div>
+                  <strong>
+                    Remove {displayUserName(selectedRemovalMember.user)}?
+                  </strong>
+                </div>
+                <p className="workspace-action-popup-copy">
+                  {selectedRemovalMember.user?.email || "This member"} will lose
+                  access to {selectedOrganization.name}, but their user account
+                  will remain untouched.
+                </p>
+                <div className="button-row contextual-create-actions">
+                  <button
+                    type="button"
+                    className="ui-button ui-button-danger"
+                    onClick={handleRemoveMember}
+                    disabled={removingMember}
+                  >
+                    {removingMember ? "Removing..." : "Remove member"}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-button ui-button-secondary"
+                    onClick={closeOrganizationPopup}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

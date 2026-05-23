@@ -204,6 +204,76 @@ export class OrganizationsService {
     };
   }
 
+  async removeMember(userId: string, orgId: string, membershipId?: string) {
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    if (!membershipId?.trim()) {
+      throw new BadRequestException('Organization member selection is required');
+    }
+
+    const requesterMembership = await this.requireMembership(userId, orgId);
+
+    if (!this.manageableRoles.includes(requesterMembership.role)) {
+      throw new ForbiddenException(
+        'Only organization owners or admins can manage members',
+      );
+    }
+
+    const memberships = await this.prisma.membership.findMany({
+      where: {
+        organizationId: orgId,
+      },
+      include: {
+        user: {
+          select: this.memberSelect(),
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    const targetMembership = memberships.find(
+      (membership) => membership.id === membershipId,
+    );
+
+    if (!targetMembership) {
+      throw new BadRequestException('Member is not part of this organization');
+    }
+
+    const manageableMemberships = memberships.filter((membership) =>
+      this.manageableRoles.includes(membership.role),
+    );
+
+    if (
+      this.manageableRoles.includes(targetMembership.role) &&
+      manageableMemberships.length <= 1
+    ) {
+      throw new BadRequestException(
+        'This organization needs at least one owner or admin',
+      );
+    }
+
+    await this.prisma.membership.delete({
+      where: {
+        id: membershipId,
+      },
+    });
+
+    return {
+      id: targetMembership.id,
+      role: targetMembership.role,
+      createdAt: targetMembership.createdAt,
+      user: targetMembership.user,
+    };
+  }
+
   async createOrganization(
     userId: string,
     name: string,

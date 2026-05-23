@@ -106,6 +106,13 @@ export const addOrganizationMember = (token, orgId, member) =>
     },
   });
 
+export const removeOrganizationMember = (token, orgId, membershipId) =>
+  api.delete(`/organizations/${orgId}/members/${membershipId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
 export const createTask = (
   token,
   orgId,
