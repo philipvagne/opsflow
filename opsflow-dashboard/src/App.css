@@ -2363,6 +2363,16 @@ button:active:not(:disabled),
   box-shadow: var(--shadow-card);
 }
 
+.contextual-create-button-danger {
+  color: var(--danger);
+  background: rgba(254, 242, 242, 0.82);
+}
+
+.contextual-create-button-danger:hover {
+  color: #7f1d1d;
+  background: rgba(254, 226, 226, 0.96);
+}
+
 .contextual-create-surface {
   margin-top: 0;
 }
@@ -2427,6 +2437,13 @@ button:active:not(:disabled),
   color: var(--text-primary);
   font-size: 15px;
   line-height: 1.25;
+}
+
+.workspace-action-popup-copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .contextual-create-actions {
@@ -2808,6 +2825,12 @@ button:active:not(:disabled),
 
 .project-detail-stats {
   gap: 14px;
+}
+
+.project-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .project-detail-stats div {

@@ -359,4 +359,73 @@ export class ProjectsService {
 
     return this.serializeProjectMember(createdMembership);
   }
+
+  async deleteProject(projectId: string, userId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new ForbiddenException('Project not found');
+    }
+
+    const membership = await this.requireMembership(
+      project.organizationId,
+      userId,
+    );
+    this.requireProjectManager(membership.role);
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        projectId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const taskIds = tasks.map((task) => task.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.note.deleteMany({
+        where: {
+          projectId,
+        },
+      });
+
+      if (taskIds.length > 0) {
+        await tx.activityLog.deleteMany({
+          where: {
+            taskId: {
+              in: taskIds,
+            },
+          },
+        });
+
+        await tx.notification.deleteMany({
+          where: {
+            taskId: {
+              in: taskIds,
+            },
+          },
+        });
+
+        await tx.task.deleteMany({
+          where: {
+            id: {
+              in: taskIds,
+            },
+          },
+        });
+      }
+
+      await tx.project.delete({
+        where: {
+          id: projectId,
+        },
+      });
+    });
+
+    return { id: projectId };
+  }
 }

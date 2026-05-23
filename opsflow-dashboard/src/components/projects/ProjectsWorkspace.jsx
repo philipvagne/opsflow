@@ -4,6 +4,7 @@ import api, {
   createNote,
   createProject,
   createTask as createProjectTask,
+  deleteProject as deleteProjectApi,
   deleteNote,
   getMyOrganizations,
   getOrganizationMembers,
@@ -180,6 +181,7 @@ export default function ProjectsWorkspace({
     useState(false);
   const [showProjectMemberAddForm, setShowProjectMemberAddForm] =
     useState(false);
+  const [showProjectDeleteForm, setShowProjectDeleteForm] = useState(false);
   const [editingProjectNoteId, setEditingProjectNoteId] = useState("");
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -196,6 +198,7 @@ export default function ProjectsWorkspace({
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const [error, setError] = useState("");
   const [addingProjectMember, setAddingProjectMember] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId) || null,
@@ -272,6 +275,8 @@ export default function ProjectsWorkspace({
           ? "create-note"
           : showProjectMemberAddForm
             ? "add-member"
+            : showProjectDeleteForm
+              ? "delete-project"
           : editingProjectNoteId && selectedProjectNote
             ? "edit-note"
             : "";
@@ -489,6 +494,7 @@ export default function ProjectsWorkspace({
     setShowProjectTaskCreateForm(false);
     setShowProjectNoteCreateForm(false);
     setShowProjectMemberAddForm(false);
+    setShowProjectDeleteForm(false);
     setNewTaskTitle("");
     setNewTaskDescription("");
     setNewTaskDueDate("");
@@ -505,6 +511,7 @@ export default function ProjectsWorkspace({
     setNewName("");
     setNewDescription("");
     setShowProjectMemberAddForm(false);
+    setShowProjectDeleteForm(false);
     setMemberSearch("");
     setSelectedMembershipId("");
   }, [selectedOrgId]);
@@ -514,6 +521,7 @@ export default function ProjectsWorkspace({
     setShowProjectNoteCreateForm(false);
     setShowProjectEditForm(false);
     setShowProjectMemberAddForm(false);
+    setShowProjectDeleteForm(false);
     setEditingProjectNoteId("");
   }, [activeProjectTab]);
 
@@ -1049,12 +1057,40 @@ export default function ProjectsWorkspace({
     }
   };
 
+  const handleDeleteProject = async () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    setDeletingProject(true);
+    setError("");
+
+    try {
+      await deleteProjectApi(token, selectedProject.id);
+
+      setProjects((current) =>
+        current.filter((project) => project.id !== selectedProject.id)
+      );
+      setProjectDetail(null);
+      setProjectTasks([]);
+      setProjectNotes([]);
+      setSelectedProjectNoteId("");
+      setSelectedProjectId("");
+      setShowProjectDeleteForm(false);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not delete project.");
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
   const closeWorkspacePopup = () => {
     setShowProjectCreateForm(false);
     setShowProjectEditForm(false);
     setShowProjectTaskCreateForm(false);
     setShowProjectNoteCreateForm(false);
     setShowProjectMemberAddForm(false);
+    setShowProjectDeleteForm(false);
     setEditingProjectNoteId("");
   };
 
@@ -1304,24 +1340,38 @@ export default function ProjectsWorkspace({
                     ) : null}
                   </div>
 
-                  {canManage ? (
-                    <button
-                      type="button"
-                      className="contextual-create-button"
-                      onClick={() => {
-                        closeWorkspacePopup();
-                        setShowProjectEditForm(true);
-                      }}
-                    >
-                      Edit Project
-                    </button>
-                  ) : selectedProject.description ? (
+                  {selectedProject.description ? (
                     <p className="project-surface-description">
                       {selectedProject.description}
                     </p>
                   ) : (
                     <p className="muted-text">No project description yet.</p>
                   )}
+
+                  {canManage ? (
+                    <div className="project-overview-actions">
+                      <button
+                        type="button"
+                        className="contextual-create-button"
+                        onClick={() => {
+                          closeWorkspacePopup();
+                          setShowProjectEditForm(true);
+                        }}
+                      >
+                        Edit Project
+                      </button>
+                      <button
+                        type="button"
+                        className="contextual-create-button contextual-create-button-danger"
+                        onClick={() => {
+                          closeWorkspacePopup();
+                          setShowProjectDeleteForm(true);
+                        }}
+                      >
+                        Delete Project
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -1917,6 +1967,35 @@ export default function ProjectsWorkspace({
                     </button>
                   </div>
                 </form>
+              ) : null}
+
+              {activeWorkspacePopup === "delete-project" && selectedProject ? (
+                <div className="project-form contextual-create-surface workspace-action-popup">
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Delete</div>
+                    <strong>Delete {selectedProject.name}?</strong>
+                  </div>
+                  <p className="workspace-action-popup-copy">
+                    This will permanently remove the project and its task workspace. Organization access and other projects will stay untouched.
+                  </p>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="button"
+                      className="ui-button ui-button-danger"
+                      onClick={handleDeleteProject}
+                      disabled={deletingProject}
+                    >
+                      {deletingProject ? "Deleting..." : "Delete project"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               ) : null}
 
               {activeWorkspacePopup === "edit-note" && selectedProjectNote ? (

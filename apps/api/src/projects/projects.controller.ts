@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   Req,
@@ -85,6 +86,18 @@ export class ProjectsController {
       projectId,
       req.user.sub,
       body.membershipId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('projects/:projectId')
+  deleteProject(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    return this.projectsService.deleteProject(
+      projectId,
+      req.user.sub,
     );
   }
 }
