@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import {
+import api, {
   createNote,
   createProject,
+  createTask as createProjectTask,
   deleteNote,
   getMyOrganizations,
   getNotes,
@@ -16,6 +17,8 @@ import { subscribeToNoteCreated } from "../../lib/noteEvents";
 import { createSocket } from "../../socket";
 
 const canManageProject = (role) => ["OWNER", "ADMIN"].includes(role);
+const canContributeToProject = (role) =>
+  Boolean(role) && !["VIEWER", "GUEST"].includes(role);
 
 const formatDate = (date) =>
   date ? new Date(date).toLocaleDateString() : "Unknown";
@@ -83,6 +86,29 @@ const isTaskOverdue = (task) =>
   new Date(task.dueDate).setHours(0, 0, 0, 0) <
     new Date().setHours(0, 0, 0, 0);
 
+const getUserIdFromToken = (token) => {
+  try {
+    const payload = token.split(".")[1];
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - (normalizedPayload.length % 4)) % 4),
+      "="
+    );
+    const decodedPayload = JSON.parse(atob(paddedPayload));
+
+    return decodedPayload.sub;
+  } catch {
+    return null;
+  }
+};
+
+const sortProjectTasks = (tasks) =>
+  [...tasks].sort(
+    (left, right) =>
+      new Date(right.updatedAt || right.createdAt || 0) -
+      new Date(left.updatedAt || left.createdAt || 0)
+  );
+
 export default function ProjectsWorkspace({
   token,
   onSelectTask,
@@ -110,12 +136,21 @@ export default function ProjectsWorkspace({
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingProjectSurface, setLoadingProjectSurface] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [creatingTask, setCreatingTask] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [creatingNote, setCreatingNote] = useState(false);
   const [deletingNoteId, setDeletingNoteId] = useState(null);
+  const [showProjectCreateForm, setShowProjectCreateForm] = useState(false);
+  const [showProjectTaskCreateForm, setShowProjectTaskCreateForm] =
+    useState(false);
+  const [showProjectNoteCreateForm, setShowProjectNoteCreateForm] =
+    useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [newNoteTitle, setNewNoteTitle] = useState("");
@@ -138,6 +173,7 @@ export default function ProjectsWorkspace({
     [projectNotes, selectedProjectNoteId]
   );
   const canManage = canManageProject(selectedOrganization?.role);
+  const canContribute = canContributeToProject(selectedOrganization?.role);
   const pinnedProjectNotes = useMemo(
     () => projectNotes.filter((note) => note.isPinned),
     [projectNotes]
@@ -146,6 +182,8 @@ export default function ProjectsWorkspace({
     () => projectNotes.filter((note) => !note.isPinned),
     [projectNotes]
   );
+  const currentUserId = useMemo(() => getUserIdFromToken(token), [token]);
+
   useEffect(() => {
     let active = true;
 
@@ -316,6 +354,27 @@ export default function ProjectsWorkspace({
       setEditNoteContent(selectedProjectNote?.content || "");
     });
   }, [selectedProjectNote]);
+
+  useEffect(() => {
+    setShowProjectTaskCreateForm(false);
+    setShowProjectNoteCreateForm(false);
+    setNewTaskTitle("");
+    setNewTaskDescription("");
+    setNewTaskDueDate("");
+    setNewNoteTitle("");
+    setNewNoteContent("");
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    setShowProjectCreateForm(false);
+    setNewName("");
+    setNewDescription("");
+  }, [selectedOrgId]);
+
+  useEffect(() => {
+    setShowProjectTaskCreateForm(false);
+    setShowProjectNoteCreateForm(false);
+  }, [activeProjectTab]);
 
   useEffect(() => {
     if (!selectedProjectId || !token) {
@@ -508,6 +567,7 @@ export default function ProjectsWorkspace({
       const createdProject = res.data;
       setProjects((current) => [createdProject, ...current]);
       setSelectedProjectId(createdProject.id);
+      setShowProjectCreateForm(false);
       setNewName("");
       setNewDescription("");
     } catch (err) {
@@ -591,6 +651,7 @@ export default function ProjectsWorkspace({
         [createdNote, ...current].sort(compareProjectNotes)
       );
       setSelectedProjectNoteId(createdNote.id);
+      setShowProjectNoteCreateForm(false);
       setNewNoteTitle("");
       setNewNoteContent("");
     } catch (err) {
@@ -599,6 +660,115 @@ export default function ProjectsWorkspace({
       );
     } finally {
       setCreatingNote(false);
+    }
+  };
+
+  const handleCreateProjectTask = async (event) => {
+    event.preventDefault();
+
+    const title = newTaskTitle.trim();
+
+    if (!title || !selectedProject || !selectedOrganization) {
+      setError("Task title is required.");
+      return;
+    }
+
+    setCreatingTask(true);
+    setError("");
+
+    try {
+      const res = await createProjectTask(
+        token,
+        selectedOrganization.id,
+        selectedProject.id,
+        {
+          title,
+          description: newTaskDescription.trim() || undefined,
+          dueDate: newTaskDueDate || undefined,
+        }
+      );
+
+      const createdTask = res.data;
+
+      if (currentUserId) {
+        await api.patch(
+          `/tasks/${createdTask.id}/assign`,
+          { assigneeId: currentUserId },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      }
+
+      const visibleTask = {
+        ...createdTask,
+        project: createdTask.project || selectedProject,
+        unreadNoteCount: 0,
+        hasUnreadNotes: false,
+        recentNoteActivityAt: null,
+        recentActivityAt:
+          createdTask.updatedAt || createdTask.createdAt || new Date().toISOString(),
+        isRecentlyActive: true,
+        assignments: currentUserId
+          ? [
+              {
+                id: `current-user-${createdTask.id}`,
+                taskId: createdTask.id,
+                userId: currentUserId,
+                user: {
+                  id: currentUserId,
+                },
+              },
+            ]
+          : createdTask.assignments || [],
+      };
+
+      setProjectTasks((current) => sortProjectTasks([visibleTask, ...current]));
+      setProjectDetail((current) =>
+        current
+          ? {
+              ...current,
+              recentActivityAt: visibleTask.recentActivityAt,
+              taskCounts: {
+                ...current.taskCounts,
+                totalActive: (current.taskCounts?.totalActive || 0) + 1,
+              },
+            }
+          : current
+      );
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === selectedProject.id
+            ? {
+                ...project,
+                recentActivityAt: visibleTask.recentActivityAt,
+                taskCounts: {
+                  ...project.taskCounts,
+                  totalActive: (project.taskCounts?.totalActive || 0) + 1,
+                },
+              }
+            : project
+        )
+      );
+      onRememberProject?.(
+        {
+          id: selectedProject.id,
+          name: selectedProject.name,
+          organizationId: selectedOrganization.id,
+          orgName: selectedOrganization.name,
+        },
+        visibleTask.recentActivityAt
+      );
+      setShowProjectTaskCreateForm(false);
+      setNewTaskTitle("");
+      setNewTaskDescription("");
+      setNewTaskDueDate("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not create task.");
+    } finally {
+      setCreatingTask(false);
     }
   };
 
@@ -694,38 +864,64 @@ export default function ProjectsWorkspace({
               </label>
             )}
 
-            {canManage ? (
-              <form className="project-form" onSubmit={handleCreateProject}>
-                <label className="form-label">
-                  New project
-                  <input
-                    className="ui-input"
-                    value={newName}
-                    onChange={(event) => setNewName(event.target.value)}
-                    placeholder="Project name"
-                  />
-                </label>
-                <label className="form-label">
-                  Description
-                  <textarea
-                    className="ui-textarea"
-                    value={newDescription}
-                    onChange={(event) => setNewDescription(event.target.value)}
-                    placeholder="Optional project description"
-                    rows={3}
-                  />
-                </label>
+            {canManage && selectedOrgId ? (
+              <div className="contextual-create-block">
                 <button
-                  type="submit"
-                  className="ui-button ui-button-primary"
-                  disabled={creating || !selectedOrgId}
+                  type="button"
+                  className="contextual-create-button"
+                  onClick={() =>
+                    setShowProjectCreateForm((current) => !current)
+                  }
                 >
-                  {creating ? "Creating..." : "Create project"}
+                  + Create Project
                 </button>
-              </form>
-            ) : selectedOrganization ? (
-              <div className="muted-text">
-                Only organization owners and admins can create projects.
+
+                {showProjectCreateForm ? (
+                  <form
+                    className="project-form contextual-create-surface"
+                    onSubmit={handleCreateProject}
+                  >
+                    <label className="form-label">
+                      Project name
+                      <input
+                        className="ui-input"
+                        value={newName}
+                        onChange={(event) => setNewName(event.target.value)}
+                        placeholder="Project name"
+                      />
+                    </label>
+                    <label className="form-label">
+                      Description
+                      <textarea
+                        className="ui-textarea"
+                        value={newDescription}
+                        onChange={(event) => setNewDescription(event.target.value)}
+                        placeholder="Optional project description"
+                        rows={3}
+                      />
+                    </label>
+                    <div className="button-row contextual-create-actions">
+                      <button
+                        type="submit"
+                        className="ui-button ui-button-primary"
+                        disabled={creating}
+                      >
+                        {creating ? "Creating..." : "Save project"}
+                      </button>
+                      <button
+                        type="button"
+                        className="ui-button ui-button-secondary"
+                        onClick={() => {
+                          setShowProjectCreateForm(false);
+                          setNewName("");
+                          setNewDescription("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -926,47 +1122,120 @@ export default function ProjectsWorkspace({
                       <div className="dashboard-eyebrow">Project Tasks</div>
                       <h5>Work in this project</h5>
                     </div>
+
+                    {canContribute ? (
+                      <button
+                        type="button"
+                        className="contextual-create-button"
+                        onClick={() =>
+                          setShowProjectTaskCreateForm((current) => !current)
+                        }
+                      >
+                        + Create Task
+                      </button>
+                    ) : null}
                   </div>
+
+                  {canContribute && showProjectTaskCreateForm ? (
+                    <form
+                      className="project-form contextual-create-surface"
+                      onSubmit={handleCreateProjectTask}
+                    >
+                      <label className="form-label">
+                        Task title
+                        <input
+                          className="ui-input"
+                          value={newTaskTitle}
+                          onChange={(event) => setNewTaskTitle(event.target.value)}
+                          placeholder="Task title"
+                        />
+                      </label>
+                      <label className="form-label">
+                        Description
+                        <textarea
+                          className="ui-textarea"
+                          value={newTaskDescription}
+                          onChange={(event) =>
+                            setNewTaskDescription(event.target.value)
+                          }
+                          placeholder="Optional description"
+                          rows={3}
+                        />
+                      </label>
+                      <label className="form-label">
+                        Due date
+                        <input
+                          type="date"
+                          className="ui-input"
+                          value={newTaskDueDate}
+                          onChange={(event) => setNewTaskDueDate(event.target.value)}
+                        />
+                      </label>
+                      <div className="button-row contextual-create-actions">
+                        <button
+                          type="submit"
+                          className="ui-button ui-button-primary"
+                          disabled={creatingTask}
+                        >
+                          {creatingTask ? "Creating..." : "Save task"}
+                        </button>
+                        <button
+                          type="button"
+                          className="ui-button ui-button-secondary"
+                          onClick={() => {
+                            setShowProjectTaskCreateForm(false);
+                            setNewTaskTitle("");
+                            setNewTaskDescription("");
+                            setNewTaskDueDate("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
 
                   {projectTasks.length === 0 ? (
                     <div className="muted-text">
                       This project is quiet right now.
                     </div>
                   ) : (
-                    <div className="project-task-list">
-                      {projectTasks.map((task) => (
-                        <button
-                          key={task.id}
-                          type="button"
-                          className="project-task-row"
-                          onClick={() => onSelectTask?.(task)}
-                        >
-                          <div className="project-task-row-main">
-                            <strong>{task.title}</strong>
-                            <div className="project-task-meta">
-                              <span>{formatStatus(task.status)}</span>
-                              <span>{getTaskAssigneeLabel(task)}</span>
-                              {task.dueDate ? (
-                                <span
-                                  className={
-                                    isTaskOverdue(task)
-                                      ? "task-table-date overdue"
-                                      : "task-table-date"
-                                  }
-                                >
-                                  Due {formatDate(task.dueDate)}
-                                </span>
-                              ) : null}
+                    <div className="project-tasks-list-shell">
+                      <div className="project-task-list">
+                        {projectTasks.map((task) => (
+                          <button
+                            key={task.id}
+                            type="button"
+                            className="project-task-row"
+                            onClick={() => onSelectTask?.(task)}
+                          >
+                            <div className="project-task-row-main">
+                              <strong>{task.title}</strong>
+                              <div className="project-task-meta">
+                                <span>{formatStatus(task.status)}</span>
+                                <span>{getTaskAssigneeLabel(task)}</span>
+                                {task.dueDate ? (
+                                  <span
+                                    className={
+                                      isTaskOverdue(task)
+                                        ? "task-table-date overdue"
+                                        : "task-table-date"
+                                    }
+                                  >
+                                    Due {formatDate(task.dueDate)}
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                          {task.unreadNoteCount > 0 ? (
-                            <span className="task-awareness-text">
-                              {task.unreadNoteCount} new note
-                              {task.unreadNoteCount > 1 ? "s" : ""}
-                            </span>
-                          ) : null}
-                        </button>
-                      ))}
+                            {task.unreadNoteCount > 0 ? (
+                              <span className="task-awareness-text">
+                                {task.unreadNoteCount} new note
+                                {task.unreadNoteCount > 1 ? "s" : ""}
+                              </span>
+                            ) : null}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </section>
@@ -979,106 +1248,138 @@ export default function ProjectsWorkspace({
                       <div className="dashboard-eyebrow">Project Notes</div>
                       <h5>Context and references</h5>
                     </div>
+
+                    {canContribute ? (
+                      <button
+                        type="button"
+                        className="contextual-create-button"
+                        onClick={() =>
+                          setShowProjectNoteCreateForm((current) => !current)
+                        }
+                      >
+                        + Create Note
+                      </button>
+                    ) : null}
                   </div>
 
-                  <form className="project-form" onSubmit={handleCreateProjectNote}>
-                    <label className="form-label">
-                      New project note
-                      <input
-                        className="ui-input"
-                        value={newNoteTitle}
-                        onChange={(event) => setNewNoteTitle(event.target.value)}
-                        placeholder="Note title"
-                      />
-                    </label>
-                    <label className="form-label">
-                      Content
-                      <textarea
-                        className="ui-textarea"
-                        value={newNoteContent}
-                        onChange={(event) => setNewNoteContent(event.target.value)}
-                        placeholder="Reference, decision, or operational context..."
-                        rows={3}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="ui-button ui-button-primary"
-                      disabled={creatingNote}
+                  {canContribute && showProjectNoteCreateForm ? (
+                    <form
+                      className="project-form contextual-create-surface"
+                      onSubmit={handleCreateProjectNote}
                     >
-                      {creatingNote ? "Creating..." : "Create note"}
-                    </button>
-                  </form>
+                      <label className="form-label">
+                        Note title
+                        <input
+                          className="ui-input"
+                          value={newNoteTitle}
+                          onChange={(event) => setNewNoteTitle(event.target.value)}
+                          placeholder="Note title"
+                        />
+                      </label>
+                      <label className="form-label">
+                        Content
+                        <textarea
+                          className="ui-textarea"
+                          value={newNoteContent}
+                          onChange={(event) => setNewNoteContent(event.target.value)}
+                          placeholder="Reference, decision, or operational context..."
+                          rows={3}
+                        />
+                      </label>
+                      <div className="button-row contextual-create-actions">
+                        <button
+                          type="submit"
+                          className="ui-button ui-button-primary"
+                          disabled={creatingNote}
+                        >
+                          {creatingNote ? "Creating..." : "Save note"}
+                        </button>
+                        <button
+                          type="button"
+                          className="ui-button ui-button-secondary"
+                          onClick={() => {
+                            setShowProjectNoteCreateForm(false);
+                            setNewNoteTitle("");
+                            setNewNoteContent("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
 
                   {projectNotes.length === 0 ? (
                     <div className="muted-text">
                       No project context yet.
                     </div>
                   ) : (
-                    <>
-                      <div className="project-note-list">
-                        {pinnedProjectNotes.length > 0 && (
-                          <div className="project-note-group">
-                            <div className="dashboard-eyebrow">Pinned</div>
-                            {pinnedProjectNotes.map((note) => (
-                              <button
-                                key={note.id}
-                                type="button"
-                                className={
-                                  note.id === selectedProjectNoteId
-                                    ? "task-note-card active"
-                                    : "task-note-card"
-                                }
-                                onClick={() => setSelectedProjectNoteId(note.id)}
-                              >
-                                <div className="task-note-meta">
-                                  <span className="task-note-pin-pill">Pinned</span>
-                                  {note.kind === "REFERENCE" && (
-                                    <span className="task-note-kind-pill">
-                                      Reference
-                                    </span>
-                                  )}
-                                  <span>{formatDate(note.updatedAt)}</span>
-                                  <span>{getNoteAuthor(note)}</span>
-                                </div>
-                                <strong>{note.title}</strong>
-                                <p>{getNotePreview(note.content)}</p>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {regularProjectNotes.length > 0 && (
-                          <div className="project-note-group">
-                            <div className="dashboard-eyebrow">
-                              {pinnedProjectNotes.length > 0 ? "Notes" : "All Notes"}
+                    <div className="project-notes-workspace">
+                      <div className="project-notes-list-shell">
+                        <div className="project-note-list">
+                          {pinnedProjectNotes.length > 0 && (
+                            <div className="project-note-group">
+                              <div className="dashboard-eyebrow">Pinned</div>
+                              {pinnedProjectNotes.map((note) => (
+                                <button
+                                  key={note.id}
+                                  type="button"
+                                  className={
+                                    note.id === selectedProjectNoteId
+                                      ? "task-note-card active"
+                                      : "task-note-card"
+                                  }
+                                  onClick={() => setSelectedProjectNoteId(note.id)}
+                                >
+                                  <div className="task-note-meta">
+                                    <span className="task-note-pin-pill">Pinned</span>
+                                    {note.kind === "REFERENCE" && (
+                                      <span className="task-note-kind-pill">
+                                        Reference
+                                      </span>
+                                    )}
+                                    <span>{formatDate(note.updatedAt)}</span>
+                                    <span>{getNoteAuthor(note)}</span>
+                                  </div>
+                                  <strong>{note.title}</strong>
+                                  <p>{getNotePreview(note.content)}</p>
+                                </button>
+                              ))}
                             </div>
-                            {regularProjectNotes.map((note) => (
-                              <button
-                                key={note.id}
-                                type="button"
-                                className={
-                                  note.id === selectedProjectNoteId
-                                    ? "task-note-card active"
-                                    : "task-note-card"
-                                }
-                                onClick={() => setSelectedProjectNoteId(note.id)}
-                              >
-                                <div className="task-note-meta">
-                                  {note.kind === "REFERENCE" && (
-                                    <span className="task-note-kind-pill">
-                                      Reference
-                                    </span>
-                                  )}
-                                  <span>{formatDate(note.updatedAt)}</span>
-                                  <span>{getNoteAuthor(note)}</span>
-                                </div>
-                                <strong>{note.title}</strong>
-                                <p>{getNotePreview(note.content)}</p>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                          )}
+
+                          {regularProjectNotes.length > 0 && (
+                            <div className="project-note-group">
+                              <div className="dashboard-eyebrow">
+                                {pinnedProjectNotes.length > 0 ? "Notes" : "All Notes"}
+                              </div>
+                              {regularProjectNotes.map((note) => (
+                                <button
+                                  key={note.id}
+                                  type="button"
+                                  className={
+                                    note.id === selectedProjectNoteId
+                                      ? "task-note-card active"
+                                      : "task-note-card"
+                                  }
+                                  onClick={() => setSelectedProjectNoteId(note.id)}
+                                >
+                                  <div className="task-note-meta">
+                                    {note.kind === "REFERENCE" && (
+                                      <span className="task-note-kind-pill">
+                                        Reference
+                                      </span>
+                                    )}
+                                    <span>{formatDate(note.updatedAt)}</span>
+                                    <span>{getNoteAuthor(note)}</span>
+                                  </div>
+                                  <strong>{note.title}</strong>
+                                  <p>{getNotePreview(note.content)}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {selectedProjectNote ? (
@@ -1130,7 +1431,7 @@ export default function ProjectsWorkspace({
                           </div>
                         </div>
                       ) : null}
-                    </>
+                    </div>
                   )}
                 </section>
               ) : null}
