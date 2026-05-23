@@ -46,6 +46,25 @@ const getMemberEmail = (membership) => membership?.user?.email || "";
 
 const getProjectMembers = (project) => project?.members || [];
 
+const mergeProjectMembers = (members, nextMember) => {
+  if (!nextMember) {
+    return members;
+  }
+
+  const nextMembershipId = nextMember.membershipId || nextMember.id;
+
+  if (
+    members.some(
+      (membership) =>
+        (membership.membershipId || membership.id) === nextMembershipId
+    )
+  ) {
+    return members;
+  }
+
+  return [...members, nextMember];
+};
+
 const getMemberInitials = (membership) => {
   const label = getMemberName(membership).trim();
 
@@ -383,7 +402,9 @@ export default function ProjectsWorkspace({
         setSelectedProjectId((currentId) =>
           nextProjects.some((project) => project.id === currentId)
             ? currentId
-            : nextProjects[0]?.id || ""
+            : currentId
+              ? ""
+              : nextProjects[0]?.id || ""
         );
       } catch {
         if (active) {
@@ -1072,7 +1093,10 @@ export default function ProjectsWorkspace({
         current
           ? {
               ...current,
-              members: [...getProjectMembers(current), addedMember],
+              members: mergeProjectMembers(
+                getProjectMembers(current),
+                addedMember
+              ),
             }
           : current
       );
@@ -1081,7 +1105,10 @@ export default function ProjectsWorkspace({
           project.id === selectedProject.id
             ? {
                 ...project,
-                members: [...getProjectMembers(project), addedMember],
+                members: mergeProjectMembers(
+                  getProjectMembers(project),
+                  addedMember
+                ),
               }
             : project
         )
