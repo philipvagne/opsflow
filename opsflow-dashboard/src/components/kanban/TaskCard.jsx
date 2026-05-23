@@ -26,6 +26,7 @@ export default function TaskCard({ task, onClick }) {
     task.status !== "DONE" &&
     new Date(task.dueDate).setHours(0, 0, 0, 0) <
       new Date().setHours(0, 0, 0, 0);
+  const assigneeCount = task.assignments?.length || 0;
 
   return (
     <div
@@ -70,7 +71,8 @@ export default function TaskCard({ task, onClick }) {
       )}
 
       {task.assignments?.length > 0 && (
-        <div className="avatar-stack">
+        <div className="task-card-footer">
+          <div className="avatar-stack">
           {task.assignments.map((assignment, index) => {
             const name =
               assignment.user?.fullName ||
@@ -90,13 +92,20 @@ export default function TaskCard({ task, onClick }) {
                 className="user-avatar"
                 title={name}
                 style={{
-                  marginLeft: index === 0 ? "0" : "-8px",
+                  marginLeft: index === 0 ? "0" : "-7px",
                 }}
               >
                 {initials}
               </div>
             );
           })}
+          </div>
+
+          {assigneeCount > 2 ? (
+            <span className="task-card-meta-text">
+              {assigneeCount} assignees
+            </span>
+          ) : null}
         </div>
       )}
 
