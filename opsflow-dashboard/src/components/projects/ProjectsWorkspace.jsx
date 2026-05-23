@@ -5,6 +5,7 @@ import api, {
   createTask as createProjectTask,
   deleteNote,
   getMyOrganizations,
+  getOrganizationMembers,
   getNotes,
   getOrganizationProjects,
   getProject,
@@ -31,6 +32,30 @@ const getNoteAuthor = (note) =>
   note.createdBy?.username ||
   note.createdBy?.email ||
   "Unknown";
+
+const getMemberName = (membership) =>
+  membership?.user?.fullName ||
+  membership?.user?.username ||
+  membership?.user?.email ||
+  "Unknown member";
+
+const getMemberEmail = (membership) => membership?.user?.email || "";
+
+const getMemberInitials = (membership) => {
+  const label = getMemberName(membership).trim();
+
+  if (!label) {
+    return "?";
+  }
+
+  const parts = label.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+};
 
 const getNotePreview = (content) => {
   const text = content?.trim();
@@ -131,9 +156,12 @@ export default function ProjectsWorkspace({
   const [projectDetail, setProjectDetail] = useState(null);
   const [projectTasks, setProjectTasks] = useState([]);
   const [projectNotes, setProjectNotes] = useState([]);
+  const [organizationMembers, setOrganizationMembers] = useState([]);
   const [selectedProjectNoteId, setSelectedProjectNoteId] = useState("");
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingOrganizationMembers, setLoadingOrganizationMembers] =
+    useState(false);
   const [loadingProjectSurface, setLoadingProjectSurface] = useState(false);
   const [creating, setCreating] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
@@ -185,6 +213,18 @@ export default function ProjectsWorkspace({
     [projectNotes]
   );
   const currentUserId = useMemo(() => getUserIdFromToken(token), [token]);
+  const projectMembers = useMemo(() => organizationMembers, [organizationMembers]);
+  const activeWorkspacePopup = showProjectCreateForm
+    ? "create-project"
+    : showProjectEditForm
+      ? "edit-project"
+      : showProjectTaskCreateForm
+        ? "create-task"
+        : showProjectNoteCreateForm
+          ? "create-note"
+          : editingProjectNoteId && selectedProjectNote
+            ? "edit-note"
+            : "";
 
   useEffect(() => {
     let active = true;
@@ -227,6 +267,7 @@ export default function ProjectsWorkspace({
     if (!selectedOrgId) {
       Promise.resolve().then(() => {
         setProjects([]);
+        setOrganizationMembers([]);
         setSelectedProjectId("");
         setProjectDetail(null);
         setProjectTasks([]);
@@ -273,6 +314,43 @@ export default function ProjectsWorkspace({
       active = false;
     };
   }, [selectedOrgId, setSelectedProjectId, token]);
+
+  useEffect(() => {
+    if (!selectedOrgId) {
+      setOrganizationMembers([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadOrganizationMembers = async () => {
+      setLoadingOrganizationMembers(true);
+      setError("");
+
+      try {
+        const res = await getOrganizationMembers(token, selectedOrgId);
+
+        if (!active) return;
+
+        setOrganizationMembers(res.data || []);
+      } catch {
+        if (active) {
+          setOrganizationMembers([]);
+          setError("Could not load project members.");
+        }
+      } finally {
+        if (active) {
+          setLoadingOrganizationMembers(false);
+        }
+      }
+    };
+
+    loadOrganizationMembers();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedOrgId, token]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -550,6 +628,28 @@ export default function ProjectsWorkspace({
     selectedProjectId,
     token,
   ]);
+
+  useEffect(() => {
+    if (!activeWorkspacePopup) {
+      return undefined;
+    }
+
+    const handlePopupEscape = (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeWorkspacePopup();
+    };
+
+    window.addEventListener("keydown", handlePopupEscape, true);
+
+    return () => {
+      window.removeEventListener("keydown", handlePopupEscape, true);
+    };
+  }, [activeWorkspacePopup]);
 
   const handleCreateProject = async (event) => {
     event.preventDefault();
@@ -832,6 +932,14 @@ export default function ProjectsWorkspace({
     }
   };
 
+  const closeWorkspacePopup = () => {
+    setShowProjectCreateForm(false);
+    setShowProjectEditForm(false);
+    setShowProjectTaskCreateForm(false);
+    setShowProjectNoteCreateForm(false);
+    setEditingProjectNoteId("");
+  };
+
   if (loadingOrganizations) {
     return <div className="workspace-placeholder">Loading projects...</div>;
   }
@@ -877,59 +985,13 @@ export default function ProjectsWorkspace({
                 <button
                   type="button"
                   className="contextual-create-button"
-                  onClick={() =>
-                    setShowProjectCreateForm((current) => !current)
-                  }
+                  onClick={() => {
+                    closeWorkspacePopup();
+                    setShowProjectCreateForm(true);
+                  }}
                 >
                   + Create Project
                 </button>
-
-                {showProjectCreateForm ? (
-                  <form
-                    className="project-form contextual-create-surface"
-                    onSubmit={handleCreateProject}
-                  >
-                    <label className="form-label">
-                      Project name
-                      <input
-                        className="ui-input"
-                        value={newName}
-                        onChange={(event) => setNewName(event.target.value)}
-                        placeholder="Project name"
-                      />
-                    </label>
-                    <label className="form-label">
-                      Description
-                      <textarea
-                        className="ui-textarea"
-                        value={newDescription}
-                        onChange={(event) => setNewDescription(event.target.value)}
-                        placeholder="Optional project description"
-                        rows={3}
-                      />
-                    </label>
-                    <div className="button-row contextual-create-actions">
-                      <button
-                        type="submit"
-                        className="ui-button ui-button-primary"
-                        disabled={creating}
-                      >
-                        {creating ? "Creating..." : "Save project"}
-                      </button>
-                      <button
-                        type="button"
-                        className="ui-button ui-button-secondary"
-                        onClick={() => {
-                          setShowProjectCreateForm(false);
-                          setNewName("");
-                          setNewDescription("");
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                ) : null}
               </div>
             ) : null}
           </div>
@@ -967,10 +1029,37 @@ export default function ProjectsWorkspace({
                   >
                     <strong>{project.name}</strong>
                     <span>{project.description || "No description yet"}</span>
-                    <div className="project-count-row">
-                      <span>{project.taskCounts?.totalActive || 0} active</span>
-                      <span>{project.taskCounts?.done || 0} done</span>
-                      <span>{project.taskCounts?.overdue || 0} overdue</span>
+                    <div className="project-card-footer">
+                      <div className="project-count-row">
+                        <span>{project.taskCounts?.totalActive || 0} active</span>
+                        <span>{project.taskCounts?.done || 0} done</span>
+                        <span>{project.taskCounts?.overdue || 0} overdue</span>
+                      </div>
+
+                      {projectMembers.length > 0 ? (
+                        <div className="project-card-members" aria-label={`${projectMembers.length} members`}>
+                          <span className="project-card-member-count">
+                            {projectMembers.length} member
+                            {projectMembers.length === 1 ? "" : "s"}
+                          </span>
+                          <div className="project-member-avatar-stack">
+                            {projectMembers.slice(0, 2).map((membership) => (
+                              <span
+                                key={membership.id}
+                                className="project-member-avatar"
+                                title={getMemberName(membership)}
+                              >
+                                {getMemberInitials(membership)}
+                              </span>
+                            ))}
+                            {projectMembers.length > 2 ? (
+                              <span className="project-member-avatar project-member-avatar-more">
+                                +{projectMembers.length - 2}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </button>
                 ))}
@@ -1053,6 +1142,17 @@ export default function ProjectsWorkspace({
               >
                 Notes
               </button>
+              <button
+                type="button"
+                className={
+                  activeProjectTab === "members"
+                    ? "project-surface-tab active"
+                    : "project-surface-tab"
+                }
+                onClick={() => setActiveProjectTab("members")}
+              >
+                Members
+              </button>
             </div>
 
             <div className="project-detail-content">
@@ -1083,62 +1183,16 @@ export default function ProjectsWorkspace({
                   </div>
 
                   {canManage ? (
-                    showProjectEditForm ? (
-                      <form
-                        className="project-form contextual-create-surface"
-                        onSubmit={handleUpdateProject}
-                      >
-                        <label className="form-label">
-                          Name
-                          <input
-                            className="ui-input"
-                            value={editName}
-                            onChange={(event) => setEditName(event.target.value)}
-                          />
-                        </label>
-                        <label className="form-label">
-                          Description
-                          <textarea
-                            className="ui-textarea"
-                            value={editDescription}
-                            onChange={(event) =>
-                              setEditDescription(event.target.value)
-                            }
-                            rows={3}
-                          />
-                        </label>
-                        <div className="button-row contextual-create-actions">
-                          <button
-                            type="submit"
-                            className="ui-button ui-button-dark"
-                            disabled={saving}
-                          >
-                            {saving ? "Saving..." : "Save project"}
-                          </button>
-                          <button
-                            type="button"
-                            className="ui-button ui-button-secondary"
-                            onClick={() => {
-                              setShowProjectEditForm(false);
-                              setEditName(selectedProject?.name || "");
-                              setEditDescription(
-                                selectedProject?.description || ""
-                              );
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <button
-                        type="button"
-                        className="contextual-create-button"
-                        onClick={() => setShowProjectEditForm(true)}
-                      >
-                        Edit Project
-                      </button>
-                    )
+                    <button
+                      type="button"
+                      className="contextual-create-button"
+                      onClick={() => {
+                        closeWorkspacePopup();
+                        setShowProjectEditForm(true);
+                      }}
+                    >
+                      Edit Project
+                    </button>
                   ) : selectedProject.description ? (
                     <p className="project-surface-description">
                       {selectedProject.description}
@@ -1161,73 +1215,15 @@ export default function ProjectsWorkspace({
                       <button
                         type="button"
                         className="contextual-create-button"
-                        onClick={() =>
-                          setShowProjectTaskCreateForm((current) => !current)
-                        }
+                        onClick={() => {
+                          closeWorkspacePopup();
+                          setShowProjectTaskCreateForm(true);
+                        }}
                       >
                         + Create Task
                       </button>
                     ) : null}
                   </div>
-
-                  {canContribute && showProjectTaskCreateForm ? (
-                    <form
-                      className="project-form contextual-create-surface"
-                      onSubmit={handleCreateProjectTask}
-                    >
-                      <label className="form-label">
-                        Task title
-                        <input
-                          className="ui-input"
-                          value={newTaskTitle}
-                          onChange={(event) => setNewTaskTitle(event.target.value)}
-                          placeholder="Task title"
-                        />
-                      </label>
-                      <label className="form-label">
-                        Description
-                        <textarea
-                          className="ui-textarea"
-                          value={newTaskDescription}
-                          onChange={(event) =>
-                            setNewTaskDescription(event.target.value)
-                          }
-                          placeholder="Optional description"
-                          rows={3}
-                        />
-                      </label>
-                      <label className="form-label">
-                        Due date
-                        <input
-                          type="date"
-                          className="ui-input"
-                          value={newTaskDueDate}
-                          onChange={(event) => setNewTaskDueDate(event.target.value)}
-                        />
-                      </label>
-                      <div className="button-row contextual-create-actions">
-                        <button
-                          type="submit"
-                          className="ui-button ui-button-primary"
-                          disabled={creatingTask}
-                        >
-                          {creatingTask ? "Creating..." : "Save task"}
-                        </button>
-                        <button
-                          type="button"
-                          className="ui-button ui-button-secondary"
-                          onClick={() => {
-                            setShowProjectTaskCreateForm(false);
-                            setNewTaskTitle("");
-                            setNewTaskDescription("");
-                            setNewTaskDueDate("");
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
 
                   {projectTasks.length === 0 ? (
                     <div className="muted-text">
@@ -1287,61 +1283,15 @@ export default function ProjectsWorkspace({
                       <button
                         type="button"
                         className="contextual-create-button"
-                        onClick={() =>
-                          setShowProjectNoteCreateForm((current) => !current)
-                        }
+                        onClick={() => {
+                          closeWorkspacePopup();
+                          setShowProjectNoteCreateForm(true);
+                        }}
                       >
                         + Create Note
                       </button>
                     ) : null}
                   </div>
-
-                  {canContribute && showProjectNoteCreateForm ? (
-                    <form
-                      className="project-form contextual-create-surface"
-                      onSubmit={handleCreateProjectNote}
-                    >
-                      <label className="form-label">
-                        Note title
-                        <input
-                          className="ui-input"
-                          value={newNoteTitle}
-                          onChange={(event) => setNewNoteTitle(event.target.value)}
-                          placeholder="Note title"
-                        />
-                      </label>
-                      <label className="form-label">
-                        Content
-                        <textarea
-                          className="ui-textarea"
-                          value={newNoteContent}
-                          onChange={(event) => setNewNoteContent(event.target.value)}
-                          placeholder="Reference, decision, or operational context..."
-                          rows={3}
-                        />
-                      </label>
-                      <div className="button-row contextual-create-actions">
-                        <button
-                          type="submit"
-                          className="ui-button ui-button-primary"
-                          disabled={creatingNote}
-                        >
-                          {creatingNote ? "Creating..." : "Save note"}
-                        </button>
-                        <button
-                          type="button"
-                          className="ui-button ui-button-secondary"
-                          onClick={() => {
-                            setShowProjectNoteCreateForm(false);
-                            setNewNoteTitle("");
-                            setNewNoteContent("");
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  ) : null}
 
                   {projectNotes.length === 0 ? (
                     <div className="muted-text">
@@ -1384,6 +1334,7 @@ export default function ProjectsWorkspace({
                                         className="contextual-card-action"
                                         onClick={(event) => {
                                           event.stopPropagation();
+                                          closeWorkspacePopup();
                                           setSelectedProjectNoteId(note.id);
                                           setEditingProjectNoteId(note.id);
                                         }}
@@ -1444,6 +1395,7 @@ export default function ProjectsWorkspace({
                                         className="contextual-card-action"
                                         onClick={(event) => {
                                           event.stopPropagation();
+                                          closeWorkspacePopup();
                                           setSelectedProjectNoteId(note.id);
                                           setEditingProjectNoteId(note.id);
                                         }}
@@ -1471,58 +1423,53 @@ export default function ProjectsWorkspace({
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+                </section>
+              ) : null}
 
-                      {selectedProjectNote &&
-                      editingProjectNoteId === selectedProjectNote.id ? (
-                        <div className="task-note-editor project-note-editor">
-                          <label className="form-label">
-                            Title
-                            <input
-                              className="ui-input"
-                              value={editNoteTitle}
-                              onChange={(event) =>
-                                setEditNoteTitle(event.target.value)
-                              }
-                            />
-                          </label>
+              {activeProjectTab === "members" ? (
+                <section className="project-surface-section project-members-surface">
+                  <div className="project-surface-section-header">
+                    <div>
+                      <div className="dashboard-eyebrow">Project Members</div>
+                      <h5>People in this project space</h5>
+                    </div>
+                  </div>
 
-                          <label className="form-label">
-                            Content
-                            <textarea
-                              className="ui-textarea task-note-editor-textarea"
-                              value={editNoteContent}
-                              onChange={(event) =>
-                                setEditNoteContent(event.target.value)
-                              }
-                              rows={6}
-                            />
-                          </label>
+                  {loadingOrganizationMembers ? (
+                    <div className="muted-text">Loading members...</div>
+                  ) : projectMembers.length === 0 ? (
+                    <div className="muted-text">
+                      No members are connected to this project space yet.
+                    </div>
+                  ) : (
+                    <div className="project-members-list-shell">
+                      <div className="project-members-list">
+                        {projectMembers.map((membership) => (
+                          <div
+                            key={membership.id}
+                            className="project-member-row"
+                          >
+                            <span className="project-member-avatar project-member-avatar-large">
+                              {getMemberInitials(membership)}
+                            </span>
 
-                          <div className="button-row contextual-create-actions">
-                            <button
-                              type="button"
-                              className="ui-button ui-button-dark"
-                              onClick={handleSaveProjectNote}
-                              disabled={savingNote}
-                            >
-                              {savingNote ? "Saving..." : "Save note"}
-                            </button>
-                            <button
-                              type="button"
-                              className="ui-button ui-button-secondary"
-                              onClick={() => {
-                                setEditingProjectNoteId("");
-                                setEditNoteTitle(selectedProjectNote?.title || "");
-                                setEditNoteContent(
-                                  selectedProjectNote?.content || ""
-                                );
-                              }}
-                            >
-                              Cancel
-                            </button>
+                            <div className="project-member-copy">
+                              <strong>{getMemberName(membership)}</strong>
+                              {getMemberEmail(membership) ? (
+                                <span>{getMemberEmail(membership)}</span>
+                              ) : null}
+                            </div>
+
+                            {membership.role ? (
+                              <span className="project-member-role">
+                                {membership.role}
+                              </span>
+                            ) : null}
                           </div>
-                        </div>
-                      ) : null}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </section>
@@ -1535,6 +1482,278 @@ export default function ProjectsWorkspace({
             <p>Tasks, notes, and recent context will gather here without taking over the workspace.</p>
           </div>
         )}
+
+        {activeWorkspacePopup ? (
+          <div className="project-workspace-popup-layer" role="presentation">
+            <button
+              type="button"
+              className="project-workspace-popup-backdrop"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                closeWorkspacePopup();
+              }}
+              aria-label="Close workspace popup"
+            />
+
+            <div
+              className="project-workspace-popup-shell"
+              onMouseDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {activeWorkspacePopup === "create-project" ? (
+                <form
+                  className="project-form contextual-create-surface workspace-action-popup"
+                  onSubmit={handleCreateProject}
+                >
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Create</div>
+                    <strong>New Project</strong>
+                  </div>
+                  <label className="form-label">
+                    Project name
+                    <input
+                      className="ui-input"
+                      value={newName}
+                      onChange={(event) => setNewName(event.target.value)}
+                      placeholder="Project name"
+                    />
+                  </label>
+                  <label className="form-label">
+                    Description
+                    <textarea
+                      className="ui-textarea"
+                      value={newDescription}
+                      onChange={(event) => setNewDescription(event.target.value)}
+                      placeholder="Optional project description"
+                      rows={3}
+                    />
+                  </label>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="submit"
+                      className="ui-button ui-button-primary"
+                      disabled={creating}
+                    >
+                      {creating ? "Creating..." : "Save project"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {activeWorkspacePopup === "edit-project" && selectedProject ? (
+                <form
+                  className="project-form contextual-create-surface workspace-action-popup"
+                  onSubmit={handleUpdateProject}
+                >
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Edit</div>
+                    <strong>Project Details</strong>
+                  </div>
+                  <label className="form-label">
+                    Name
+                    <input
+                      className="ui-input"
+                      value={editName}
+                      onChange={(event) => setEditName(event.target.value)}
+                    />
+                  </label>
+                  <label className="form-label">
+                    Description
+                    <textarea
+                      className="ui-textarea"
+                      value={editDescription}
+                      onChange={(event) => setEditDescription(event.target.value)}
+                      rows={3}
+                    />
+                  </label>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="submit"
+                      className="ui-button ui-button-dark"
+                      disabled={saving}
+                    >
+                      {saving ? "Saving..." : "Save project"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {activeWorkspacePopup === "create-task" && selectedProject ? (
+                <form
+                  className="project-form contextual-create-surface workspace-action-popup workspace-action-popup-compact"
+                  onSubmit={handleCreateProjectTask}
+                >
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Create</div>
+                    <strong>Task in {selectedProject.name}</strong>
+                  </div>
+                  <label className="form-label">
+                    Task title
+                    <input
+                      className="ui-input"
+                      value={newTaskTitle}
+                      onChange={(event) => setNewTaskTitle(event.target.value)}
+                      placeholder="Task title"
+                    />
+                  </label>
+                  <label className="form-label">
+                    Description
+                    <textarea
+                      className="ui-textarea"
+                      value={newTaskDescription}
+                      onChange={(event) => setNewTaskDescription(event.target.value)}
+                      placeholder="Optional description"
+                      rows={3}
+                    />
+                  </label>
+                  <label className="form-label">
+                    Due date
+                    <input
+                      type="date"
+                      className="ui-input"
+                      value={newTaskDueDate}
+                      onChange={(event) => setNewTaskDueDate(event.target.value)}
+                    />
+                  </label>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="submit"
+                      className="ui-button ui-button-primary"
+                      disabled={creatingTask}
+                    >
+                      {creatingTask ? "Creating..." : "Save task"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {activeWorkspacePopup === "create-note" && selectedProject ? (
+                <form
+                  className="project-form contextual-create-surface workspace-action-popup workspace-action-popup-compact"
+                  onSubmit={handleCreateProjectNote}
+                >
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Create</div>
+                    <strong>Project Note</strong>
+                  </div>
+                  <label className="form-label">
+                    Note title
+                    <input
+                      className="ui-input"
+                      value={newNoteTitle}
+                      onChange={(event) => setNewNoteTitle(event.target.value)}
+                      placeholder="Note title"
+                    />
+                  </label>
+                  <label className="form-label">
+                    Content
+                    <textarea
+                      className="ui-textarea"
+                      value={newNoteContent}
+                      onChange={(event) => setNewNoteContent(event.target.value)}
+                      placeholder="Reference, decision, or operational context..."
+                      rows={3}
+                    />
+                  </label>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="submit"
+                      className="ui-button ui-button-primary"
+                      disabled={creatingNote}
+                    >
+                      {creatingNote ? "Creating..." : "Save note"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+
+              {activeWorkspacePopup === "edit-note" && selectedProjectNote ? (
+                <form
+                  className="project-form contextual-create-surface workspace-action-popup workspace-action-popup-wide"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleSaveProjectNote();
+                  }}
+                >
+                  <div className="workspace-action-popup-header">
+                    <div className="dashboard-eyebrow">Edit</div>
+                    <strong>{selectedProjectNote.title}</strong>
+                  </div>
+                  <label className="form-label">
+                    Title
+                    <input
+                      className="ui-input"
+                      value={editNoteTitle}
+                      onChange={(event) => setEditNoteTitle(event.target.value)}
+                    />
+                  </label>
+                  <label className="form-label">
+                    Content
+                    <textarea
+                      className="ui-textarea task-note-editor-textarea"
+                      value={editNoteContent}
+                      onChange={(event) => setEditNoteContent(event.target.value)}
+                      rows={6}
+                    />
+                  </label>
+                  <div className="button-row contextual-create-actions">
+                    <button
+                      type="submit"
+                      className="ui-button ui-button-dark"
+                      disabled={savingNote}
+                    >
+                      {savingNote ? "Saving..." : "Save note"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ui-button ui-button-secondary"
+                      onClick={closeWorkspacePopup}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );
