@@ -95,6 +95,27 @@ export default function OrganizationsWorkspace({ token, onOpenProject }) {
     [organizations, selectedOrgId]
   );
 
+  const handleOpenProjectWorkspace = (project) => {
+    const organizationId =
+      project?.organizationId || project?.orgId || selectedOrganization?.id || "";
+
+    if (!project?.id || !organizationId) {
+      return;
+    }
+
+    onOpenProject?.({
+      id: project.id,
+      orgId: organizationId,
+      organizationId,
+      name: project.name,
+      title: project.name,
+      orgName:
+        selectedOrganization?.name || project.organization?.name || "Organization",
+      label:
+        selectedOrganization?.name || project.organization?.name || "Organization",
+    });
+  };
+
   const canManageSelectedOrganization =
     selectedOrganization &&
     manageableRoles.includes(selectedOrganization.role);
@@ -895,19 +916,7 @@ export default function OrganizationsWorkspace({ token, onOpenProject }) {
                             key={project.id}
                             type="button"
                             className="organization-project-row"
-                            onClick={() =>
-                              onOpenProject?.({
-                                id: project.id,
-                                orgId:
-                                  project.organizationId || selectedOrganization.id,
-                                organizationId:
-                                  project.organizationId || selectedOrganization.id,
-                                name: project.name,
-                                title: project.name,
-                                orgName: selectedOrganization.name,
-                                label: selectedOrganization.name,
-                              })
-                            }
+                            onClick={() => handleOpenProjectWorkspace(project)}
                           >
                             <div className="organization-project-row-main">
                               <strong>{project.name}</strong>

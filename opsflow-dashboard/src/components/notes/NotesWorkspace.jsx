@@ -158,7 +158,7 @@ const matchesNoteSearch = (note, search) => {
 const getProjectId = (note) => note.projectId || note.project?.id || "";
 const getTaskId = (note) => note.taskId || note.task?.id || "";
 
-export default function NotesWorkspace({ token }) {
+export default function NotesWorkspace({ token, onOpenProject, onOpenTask }) {
   const [organizations, setOrganizations] = useState([]);
   const [selectedOrgId, setSelectedOrgId] = usePersistentState(
     "opsflow.notes.selectedOrgId",
@@ -286,6 +286,49 @@ export default function NotesWorkspace({ token }) {
   const selectedNoteVisible = Boolean(
     selectedNoteId && visibleNotes.some((note) => note.id === selectedNoteId)
   );
+
+  const handleOpenProjectFromNote = (note) => {
+    const projectId = getProjectId(note);
+    const organizationId =
+      note?.organizationId ||
+      note?.project?.organizationId ||
+      selectedOrganization?.id ||
+      selectedOrgId;
+
+    if (!projectId || !organizationId) {
+      return;
+    }
+
+    onOpenProject?.({
+      id: projectId,
+      orgId: organizationId,
+      organizationId,
+      name: note?.project?.name || "Project",
+      title: note?.project?.name || "Project",
+      orgName: selectedOrganization?.name || note?.organization?.name || "Organization",
+      label: selectedOrganization?.name || note?.organization?.name || "Organization",
+    });
+  };
+
+  const handleOpenTaskFromNote = (note) => {
+    const taskId = getTaskId(note);
+
+    if (!taskId) {
+      return;
+    }
+
+    onOpenTask?.({
+      id: taskId,
+      title: note?.task?.title || "Task",
+      description: note?.task?.description || "",
+      project: note?.project
+        ? {
+            id: getProjectId(note),
+            name: note.project.name || "Project",
+          }
+        : null,
+    });
+  };
 
   const upsertOrganizationNote = (nextNote) => {
     setOrganizationNotes((current) => {
@@ -929,6 +972,15 @@ export default function NotesWorkspace({ token }) {
                     {selectedNote.project?.description ||
                       "This note is not attached to a specific project."}
                   </p>
+                  {getProjectId(selectedNote) ? (
+                    <button
+                      type="button"
+                      className="workspace-context-link"
+                      onClick={() => handleOpenProjectFromNote(selectedNote)}
+                    >
+                      Open project
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="note-reader-context-card">
@@ -938,6 +990,15 @@ export default function NotesWorkspace({ token }) {
                     {selectedNote.task?.description ||
                       "Task-linked context will show here when a note belongs to active work."}
                   </p>
+                  {getTaskId(selectedNote) ? (
+                    <button
+                      type="button"
+                      className="workspace-context-link"
+                      onClick={() => handleOpenTaskFromNote(selectedNote)}
+                    >
+                      Open task
+                    </button>
+                  ) : null}
                 </div>
               </div>
 

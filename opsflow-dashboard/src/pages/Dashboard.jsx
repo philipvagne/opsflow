@@ -665,7 +665,13 @@ export default function Dashboard({ token, onLogout }) {
       }
 
       if (activeView === "notes") {
-        return <NotesWorkspace token={token} />;
+        return (
+          <NotesWorkspace
+            token={token}
+            onOpenProject={openRecentProject}
+            onOpenTask={selectTask}
+          />
+        );
       }
 
       if (activeView !== "tasks") {
