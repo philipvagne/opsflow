@@ -92,11 +92,11 @@ export default function RecentWorkPanel({
 
       <div className="recent-work-panel-body">
         <RecentWorkSection
-          title="Organizations"
-          items={recentOrganizations}
-          emptyText="No recent organization context yet."
-          onSelect={onSelectOrganization}
-        />
+        title="Teams"
+        items={recentOrganizations}
+        emptyText="No recent team context yet."
+        onSelect={onSelectOrganization}
+      />
 
         <RecentWorkSection
           title="Tasks"

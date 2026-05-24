@@ -114,9 +114,9 @@ export default function OrganizationsWorkspace({
       name: project.name,
       title: project.name,
       orgName:
-        selectedOrganization?.name || project.organization?.name || "Organization",
+        selectedOrganization?.name || project.organization?.name || "Team",
       label:
-        selectedOrganization?.name || project.organization?.name || "Organization",
+        selectedOrganization?.name || project.organization?.name || "Team",
     });
   };
 
@@ -226,7 +226,7 @@ export default function OrganizationsWorkspace({
       } catch (err) {
         if (!isMounted) return;
         setError(
-          err.response?.data?.message || "Could not load your organizations."
+          err.response?.data?.message || "Could not load your teams."
         );
       } finally {
         if (isMounted) {
@@ -272,7 +272,7 @@ export default function OrganizationsWorkspace({
         setMembers([]);
         setError(
           err.response?.data?.message ||
-            "Could not load organization members."
+            "Could not load team members."
         );
       } finally {
         if (isMounted) {
@@ -354,7 +354,7 @@ export default function OrganizationsWorkspace({
         setProjects([]);
         setError(
           err.response?.data?.message ||
-            "Could not load organization projects."
+            "Could not load team projects."
         );
       } finally {
         if (isMounted) {
@@ -376,7 +376,7 @@ export default function OrganizationsWorkspace({
     const trimmedName = organizationName.trim();
 
     if (!trimmedName) {
-      setError("Organization name is required.");
+      setError("Team name is required.");
       return;
     }
 
@@ -403,7 +403,7 @@ export default function OrganizationsWorkspace({
       setOrganizationSlug("");
     } catch (err) {
       setError(
-        err.response?.data?.message || "Could not create organization."
+        err.response?.data?.message || "Could not create team."
       );
     } finally {
       setCreatingOrganization(false);
@@ -459,7 +459,7 @@ export default function OrganizationsWorkspace({
     const trimmedName = editOrganizationName.trim();
 
     if (!trimmedName) {
-      setError("Organization name is required.");
+      setError("Team name is required.");
       return;
     }
 
@@ -487,7 +487,7 @@ export default function OrganizationsWorkspace({
       closeOrganizationPopup();
     } catch (err) {
       setError(
-        err.response?.data?.message || "Could not update organization."
+        err.response?.data?.message || "Could not update team."
       );
     } finally {
       setSavingOrganization(false);
@@ -514,7 +514,7 @@ export default function OrganizationsWorkspace({
       closeOrganizationPopup();
     } catch (err) {
       setError(
-        err.response?.data?.message || "Could not delete organization."
+        err.response?.data?.message || "Could not delete team."
       );
     } finally {
       setDeletingOrganization(false);
@@ -549,7 +549,7 @@ export default function OrganizationsWorkspace({
       closeOrganizationPopup();
     } catch (err) {
       setError(
-        err.response?.data?.message || "Could not remove organization member."
+        err.response?.data?.message || "Could not remove team member."
       );
     } finally {
       setRemovingMember(false);
@@ -582,7 +582,7 @@ export default function OrganizationsWorkspace({
 
   if (loadingOrganizations) {
     return (
-      <div className="workspace-placeholder">Loading organizations...</div>
+      <div className="workspace-placeholder">Loading teams...</div>
     );
   }
 
@@ -593,8 +593,8 @@ export default function OrganizationsWorkspace({
       <section className="project-panel organization-collection-pane">
         <div className="project-panel-header project-collection-header">
           <div>
-            <div className="dashboard-eyebrow">Organizations</div>
-            <h4>Operational groups</h4>
+            <div className="dashboard-eyebrow">Teams</div>
+            <h4>Operational teams</h4>
           </div>
         </div>
 
@@ -610,7 +610,7 @@ export default function OrganizationsWorkspace({
                     setShowOrganizationCreateForm(true);
                   }}
                 >
-                  + Create Organization
+                  + Create Team
                 </button>
               </div>
             </div>
@@ -620,15 +620,15 @@ export default function OrganizationsWorkspace({
             <div className="project-panel-header project-list-header">
               <div>
                 <div className="dashboard-eyebrow">Collection</div>
-                <h4>Your organizations</h4>
+                <h4>Your teams</h4>
               </div>
             </div>
 
             {organizations.length === 0 ? (
               <div className="org-empty-state">
-                <h4>No organization yet</h4>
+                <h4>No team yet</h4>
                 <p>
-                  Create an organization to group members, projects, and shared
+                  Create a team to group members, projects, and shared
                   workspaces.
                 </p>
               </div>
@@ -684,7 +684,7 @@ export default function OrganizationsWorkspace({
         {selectedOrganization ? (
           <>
             <div className="project-opened-strip">
-              <div className="project-opened-tab" aria-label="Opened organization">
+              <div className="project-opened-tab" aria-label="Opened team">
                 <div className="project-opened-tab-main">
                   <span
                     className="project-opened-tab-icon organization-opened-tab-icon"
@@ -694,7 +694,7 @@ export default function OrganizationsWorkspace({
                   </span>
                   <div className="project-opened-tab-copy">
                     <span className="project-opened-tab-label">
-                      Opened Organization
+                      Opened Team
                     </span>
                     <strong>{selectedOrganization.name}</strong>
                   </div>
@@ -716,7 +716,7 @@ export default function OrganizationsWorkspace({
                 <div className="dashboard-eyebrow">Workspace Surface</div>
                 <h4>{selectedOrganization.name}</h4>
                 <div className="workspace-surface-subtitle">
-                  {selectedOrganization.slug || "Organization workspace"}
+                  {selectedOrganization.slug || "Team workspace"}
                 </div>
               </div>
               <span className="role-pill">{selectedOrganization.role}</span>
@@ -725,7 +725,7 @@ export default function OrganizationsWorkspace({
             <div
               className="project-surface-tabs"
               role="tablist"
-              aria-label="Organization detail tabs"
+              aria-label="Team detail tabs"
             >
               <button
                 type="button"
@@ -806,7 +806,7 @@ export default function OrganizationsWorkspace({
                   </div>
 
                   <p className="project-surface-description">
-                    This organization surface keeps your people, project access,
+                    This team surface keeps your people, project access,
                     and shared workspace structure in one calmer operational
                     layer.
                   </p>
@@ -817,8 +817,8 @@ export default function OrganizationsWorkspace({
                 <section className="project-surface-section project-members-surface organization-members-surface">
                   <div className="project-surface-section-header">
                     <div>
-                      <div className="dashboard-eyebrow">Organization Members</div>
-                      <h5>People in this workspace</h5>
+                      <div className="dashboard-eyebrow">Team Members</div>
+                      <h5>People on this team</h5>
                     </div>
                   </div>
 
@@ -826,7 +826,7 @@ export default function OrganizationsWorkspace({
                     <div className="muted-text">Loading members...</div>
                   ) : members.length === 0 ? (
                     <div className="muted-text">
-                      No members are connected to this organization yet.
+                      No members are connected to this team yet.
                     </div>
                   ) : (
                     <div className="organization-members-toolbar">
@@ -871,7 +871,7 @@ export default function OrganizationsWorkspace({
                   {!loadingMembers && members.length > 0 ? (
                     filteredMembers.length === 0 ? (
                       <div className="muted-text">
-                        No members match the current search or role filter.
+                      No team members match the current search or role filter.
                       </div>
                     ) : (
                     <div className="project-members-list-shell">
@@ -932,7 +932,7 @@ export default function OrganizationsWorkspace({
                     <div className="muted-text">Loading projects...</div>
                   ) : projects.length === 0 ? (
                     <div className="muted-text">
-                      No projects belong to this organization yet.
+                      No projects belong to this team yet.
                     </div>
                   ) : (
                     <div className="organization-project-list-shell">
@@ -972,8 +972,8 @@ export default function OrganizationsWorkspace({
                 <section className="project-surface-section organization-foundation-surface">
                   <div className="project-surface-section-header">
                     <div>
-                      <div className="dashboard-eyebrow">Settings</div>
-                      <h5>Workspace configuration</h5>
+                      <div className="dashboard-eyebrow">Team Settings</div>
+                      <h5>Team configuration</h5>
                     </div>
                   </div>
 
@@ -1004,7 +1004,7 @@ export default function OrganizationsWorkspace({
                           setShowOrganizationEditForm(true);
                         }}
                       >
-                        Edit Organization
+                        Edit Team
                       </button>
                       <button
                         type="button"
@@ -1014,13 +1014,13 @@ export default function OrganizationsWorkspace({
                           setShowOrganizationDeleteForm(true);
                         }}
                       >
-                        Delete Organization
+                        Delete Team
                       </button>
                     </div>
                   ) : null}
 
                   <p className="muted-text organization-foundation-copy">
-                    Organization settings stay calm and read-first until you
+                    Team settings stay calm and read-first until you
                     intentionally choose to update or remove this workspace.
                   </p>
                 </section>
@@ -1029,9 +1029,9 @@ export default function OrganizationsWorkspace({
           </>
         ) : (
           <div className="org-empty-state">
-            <h4>Open an organization</h4>
+            <h4>Open a team</h4>
             <p>
-              Members, project access, and future workspace settings will gather
+              Team members, project access, and future workspace settings will gather
               here without taking over the page.
             </p>
           </div>
@@ -1072,7 +1072,7 @@ export default function OrganizationsWorkspace({
                 <div className="workspace-action-popup-header workspace-floating-window-header">
                   <div className="workspace-floating-window-title">
                     <div className="dashboard-eyebrow">Create</div>
-                    <strong>New Organization</strong>
+                    <strong>New Team</strong>
                   </div>
                   <button
                     type="button"
@@ -1084,7 +1084,7 @@ export default function OrganizationsWorkspace({
                   </button>
                 </div>
                 <label className="form-label">
-                  Organization name
+                  Team name
                   <input
                     className="ui-input"
                     value={organizationName}
@@ -1109,7 +1109,7 @@ export default function OrganizationsWorkspace({
                     className="ui-button ui-button-primary"
                     disabled={creatingOrganization}
                   >
-                    {creatingOrganization ? "Creating..." : "Save organization"}
+                    {creatingOrganization ? "Creating..." : "Save team"}
                   </button>
                   <button
                     type="button"
@@ -1130,7 +1130,7 @@ export default function OrganizationsWorkspace({
                 <div className="workspace-action-popup-header workspace-floating-window-header">
                   <div className="workspace-floating-window-title">
                     <div className="dashboard-eyebrow">Members</div>
-                    <strong>Add member to {selectedOrganization?.name}</strong>
+                    <strong>Add member to team {selectedOrganization?.name}</strong>
                   </div>
                   <button
                     type="button"
@@ -1205,12 +1205,12 @@ export default function OrganizationsWorkspace({
                   </button>
                 </div>
                 <label className="form-label">
-                  Organization name
+                  Team name
                   <input
                     className="ui-input"
                     value={editOrganizationName}
                     onChange={(event) => setEditOrganizationName(event.target.value)}
-                    placeholder="Organization name"
+                    placeholder="Team name"
                   />
                 </label>
 
@@ -1220,7 +1220,7 @@ export default function OrganizationsWorkspace({
                     className="ui-input"
                     value={editOrganizationSlug}
                     onChange={(event) => setEditOrganizationSlug(event.target.value)}
-                    placeholder="organization-slug"
+                    placeholder="team-slug"
                   />
                 </label>
 
@@ -1230,7 +1230,7 @@ export default function OrganizationsWorkspace({
                     className="ui-button ui-button-primary"
                     disabled={savingOrganization}
                   >
-                    {savingOrganization ? "Saving..." : "Save organization"}
+                    {savingOrganization ? "Saving..." : "Save team"}
                   </button>
                   <button
                     type="button"
@@ -1249,7 +1249,7 @@ export default function OrganizationsWorkspace({
                 <div className="workspace-action-popup-header workspace-floating-window-header">
                   <div className="workspace-floating-window-title">
                     <div className="dashboard-eyebrow">Delete</div>
-                    <strong>Delete {selectedOrganization.name}?</strong>
+                    <strong>Delete team {selectedOrganization.name}?</strong>
                   </div>
                   <button
                     type="button"
@@ -1261,7 +1261,7 @@ export default function OrganizationsWorkspace({
                   </button>
                 </div>
                 <p className="workspace-action-popup-copy">
-                  This will permanently remove the organization and its related
+                  This will permanently remove the team and its related
                   projects, members, and workspace context. Your user account
                   will stay intact.
                 </p>
@@ -1272,7 +1272,7 @@ export default function OrganizationsWorkspace({
                     onClick={handleDeleteOrganization}
                     disabled={deletingOrganization}
                   >
-                    {deletingOrganization ? "Deleting..." : "Delete organization"}
+                    {deletingOrganization ? "Deleting..." : "Delete team"}
                   </button>
                   <button
                     type="button"
@@ -1307,7 +1307,7 @@ export default function OrganizationsWorkspace({
                 </div>
                 <p className="workspace-action-popup-copy">
                   {selectedRemovalMember.user?.email || "This member"} will lose
-                  access to {selectedOrganization.name}, but their user account
+                  access to team {selectedOrganization.name}, but their user account
                   will remain untouched.
                 </p>
                 <div className="button-row contextual-create-actions workspace-floating-window-actions">

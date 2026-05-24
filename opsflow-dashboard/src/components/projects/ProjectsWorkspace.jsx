@@ -372,7 +372,7 @@ export default function ProjectsWorkspace({
         );
       } catch {
         if (active) {
-          setError("Could not load organizations.");
+          setError("Could not load teams.");
         }
       } finally {
         if (active) {
@@ -1248,12 +1248,12 @@ export default function ProjectsWorkspace({
           <div className="project-collection-controls">
             {organizations.length === 0 ? (
               <div className="org-empty-state">
-                <h4>No organization yet</h4>
-                <p>Create an organization before creating projects.</p>
+                <h4>No team yet</h4>
+                <p>Create a team before creating projects.</p>
               </div>
             ) : (
               <label className="form-label">
-                Organization
+                Team
                 <select
                   className="ui-input"
                   value={selectedOrgId}
@@ -1296,7 +1296,7 @@ export default function ProjectsWorkspace({
               <div className="workspace-placeholder">Loading projects...</div>
             ) : projects.length === 0 ? (
               <div className="org-empty-state">
-                <h4>This organization is quiet right now</h4>
+                <h4>This team is quiet right now</h4>
                 <p>
                   Projects created here will appear when the work is ready for
                   them.
@@ -2103,7 +2103,7 @@ export default function ProjectsWorkspace({
                   </div>
 
                   <label className="form-label">
-                    Search organization members
+                    Search team members
                     <input
                       className="ui-input"
                       value={memberSearch}
@@ -2113,10 +2113,10 @@ export default function ProjectsWorkspace({
                   </label>
 
                   {loadingOrganizationMembers ? (
-                    <div className="muted-text">Loading organization members...</div>
+                    <div className="muted-text">Loading team members...</div>
                   ) : filteredAvailableMembers.length === 0 ? (
                     <div className="muted-text">
-                      No additional organization members are available for this project.
+                      No additional team members are available for this project.
                     </div>
                   ) : (
                     <div className="workspace-member-picker-list" role="listbox" aria-label="Available members">
@@ -2189,7 +2189,7 @@ export default function ProjectsWorkspace({
                     </button>
                   </div>
                   <p className="workspace-action-popup-copy">
-                    This will permanently remove the project and its task workspace. Organization access and other projects will stay untouched.
+                    This will permanently remove the project and its task workspace. Team access and other projects will stay untouched.
                   </p>
                   <div className="button-row contextual-create-actions workspace-floating-window-actions">
                     <button
@@ -2230,7 +2230,7 @@ export default function ProjectsWorkspace({
                     </button>
                   </div>
                   <p className="workspace-action-popup-copy">
-                    {getMemberEmail(selectedRemovalMember) || "This member"} will lose access to {selectedProject.name}, but will remain in the organization.
+                    {getMemberEmail(selectedRemovalMember) || "This member"} will lose access to {selectedProject.name}, but will remain on the team.
                   </p>
                   <div className="button-row contextual-create-actions workspace-floating-window-actions">
                     <button

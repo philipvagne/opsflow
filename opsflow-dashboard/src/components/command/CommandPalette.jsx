@@ -44,7 +44,7 @@ export default function CommandPalette({
       },
       {
         id: "go-organizations",
-        label: "Go to Organizations",
+        label: "Go to Teams",
         hint: "Workspace",
         type: "view",
         view: "organizations",

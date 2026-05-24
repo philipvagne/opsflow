@@ -246,8 +246,8 @@ export default function Dashboard({ token, onLogout }) {
         id: organizationId,
         type: "organization",
         organizationId,
-        title: organization.name || organization.title || "Organization",
-        label: "Organization",
+        title: organization.name || organization.title || "Team",
+        label: "Team",
         meta: [
           organization.slug ? `@${organization.slug}` : "",
           typeof organization.memberCount === "number"
@@ -365,9 +365,9 @@ export default function Dashboard({ token, onLogout }) {
       placeholder: "Notes workspace coming soon",
     },
     organizations: {
-      eyebrow: "Organizations",
-      title: "Organizations",
-      placeholder: "Organization management coming soon",
+      eyebrow: "Teams",
+      title: "Teams",
+      placeholder: "Team management coming soon",
     },
     settings: {
       eyebrow: "Settings",

@@ -31,7 +31,7 @@ const workspaceGroups = [
   {
     title: "Account",
     items: [
-      { id: "organizations", label: "Organization", kind: "view" },
+      { id: "organizations", label: "Teams", kind: "view" },
       { id: "profile", label: "Profile", kind: "view" },
       { id: "settings", label: "Settings", kind: "view" },
     ],

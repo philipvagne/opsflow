@@ -341,8 +341,8 @@ export default function NotesWorkspace({
       organizationId,
       name: note?.project?.name || "Project",
       title: note?.project?.name || "Project",
-      orgName: selectedOrganization?.name || note?.organization?.name || "Organization",
-      label: selectedOrganization?.name || note?.organization?.name || "Organization",
+      orgName: selectedOrganization?.name || note?.organization?.name || "Team",
+      label: selectedOrganization?.name || note?.organization?.name || "Team",
     });
   };
 
@@ -407,7 +407,7 @@ export default function NotesWorkspace({
         );
       } catch {
         if (active) {
-          setError("Could not load organizations.");
+          setError("Could not load teams.");
         }
       } finally {
         if (active) {
@@ -732,14 +732,14 @@ export default function NotesWorkspace({
 
         {organizations.length === 0 ? (
           <div className="org-empty-state">
-            <h4>No organization yet</h4>
-            <p>Create an organization before shared notes can gather here.</p>
+            <h4>No team yet</h4>
+            <p>Create a team before shared notes can gather here.</p>
           </div>
         ) : (
           <>
             <div className="notes-collection-controls">
               <label className="form-label">
-                Organization
+                Team
                 <select
                   className="ui-input"
                   value={selectedOrgId}
@@ -813,7 +813,7 @@ export default function NotesWorkspace({
               ) : visibleNotes.length === 0 ? (
                 <div className="org-empty-state notes-inline-empty">
                   <h4>No notes match this view</h4>
-                  <p>Try another organization, project, task, or search term.</p>
+                  <p>Try another team, project, task, or search term.</p>
                 </div>
               ) : (
                 <div className="notes-list-sections">
@@ -965,7 +965,7 @@ export default function NotesWorkspace({
                 <div className="dashboard-eyebrow">Workspace Surface</div>
                 <h4>{selectedNote.title}</h4>
                 <div className="workspace-surface-subtitle">
-                  {selectedOrganization?.name || "Organization memory"}
+                  {selectedOrganization?.name || "Team memory"}
                 </div>
               </div>
 

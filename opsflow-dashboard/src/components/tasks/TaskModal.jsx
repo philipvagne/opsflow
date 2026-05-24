@@ -345,7 +345,7 @@ export default function TaskModal({
       setNotesError(
         !title
           ? "Note title is required."
-          : "This task is missing organization context. Refresh or reopen the task."
+          : "This task is missing team context. Refresh or reopen the task."
       );
       return;
     }

@@ -123,7 +123,7 @@ export default function QuickNotePopover({
           setOrganizationId("");
           setProjectId("");
           setTaskId("");
-          setError("Create or join an organization before saving notes.");
+          setError("Create or join a team before saving notes.");
           return;
         }
 
@@ -198,7 +198,7 @@ export default function QuickNotePopover({
     const trimmedContent = content.trim();
 
     if (!hasOrganization) {
-      setError("Create or join an organization before saving notes.");
+      setError("Create or join a team before saving notes.");
       return;
     }
 
@@ -264,7 +264,7 @@ export default function QuickNotePopover({
         ) : (
           <>
             <div className="quick-note-context">
-              <span>{selectedOrganization?.name || "No organization"}</span>
+              <span>{selectedOrganization?.name || "No team"}</span>
               {projectId ? (
                 <span>
                   {

@@ -79,7 +79,7 @@ export default function CreateTaskPanel({
         if (active) {
           setProjects([]);
           setSelectedProjectId("");
-          setError("Could not load projects for this organization.");
+          setError("Could not load projects for this team.");
         }
       } finally {
         if (active) {
@@ -156,8 +156,8 @@ export default function CreateTaskPanel({
         </div>
       ) : !hasOrganizations ? (
         <div className="context-panel-empty">
-          A project is required before creating tasks. Create or join an
-          organization first.
+          A project is required before creating tasks. Create or join a
+          team first.
         </div>
       ) : (
         <form className="task-create-form" onSubmit={handleSubmit}>
@@ -165,7 +165,7 @@ export default function CreateTaskPanel({
             <strong>Workspace</strong>
 
             <label className="form-label">
-              Organization
+              Team
               <select
                 className="ui-input full-width"
                 value={selectedOrgId}
@@ -201,7 +201,7 @@ export default function CreateTaskPanel({
 
             {!hasProjects && !loadingProjects && (
               <div className="muted-text">
-                Create a project in this organization before adding tasks.
+                Create a project in this team before adding tasks.
               </div>
             )}
           </section>
