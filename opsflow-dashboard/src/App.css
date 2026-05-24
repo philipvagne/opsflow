@@ -382,7 +382,7 @@ button:active:not(:disabled),
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-height: calc(100vh - 28px);
+  max-height: calc(100svh - 28px);
   padding: var(--space-4);
   border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: var(--radius-lg);
@@ -411,6 +411,7 @@ button:active:not(:disabled),
   flex-direction: column;
   gap: var(--space-4);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 2px;
 }
 
@@ -599,7 +600,7 @@ button:active:not(:disabled),
   min-width: 0;
   min-height: 0;
   padding: 2px 0 0;
-  overflow: auto;
+  overflow: hidden;
   box-sizing: border-box;
   background: transparent;
 }
@@ -610,12 +611,14 @@ button:active:not(:disabled),
   gap: 30px;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   align-content: start;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .dashboard-workspace-stack.has-context-surface {
-  grid-template-rows: minmax(400px, auto) minmax(420px, 1.04fr);
+  grid-template-rows: minmax(320px, auto) minmax(360px, 1fr);
 }
 
 .dashboard-right-context {
@@ -625,6 +628,7 @@ button:active:not(:disabled),
   align-items: flex-start;
   justify-content: flex-end;
   padding-top: 2px;
+  overflow: hidden;
 }
 
 .launcher-presence {
@@ -2038,7 +2042,10 @@ button:active:not(:disabled),
 }
 
 .organization-detail-content {
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .organization-overview-surface,
@@ -2362,6 +2369,7 @@ button:active:not(:disabled),
 
 .project-collection-body,
 .project-detail-content {
+  min-width: 0;
   min-height: 0;
 }
 
@@ -2570,6 +2578,14 @@ button:active:not(:disabled),
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
   width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.project-surface-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .project-surface-tab {
@@ -2679,14 +2695,16 @@ button:active:not(:disabled),
   justify-content: center;
   padding: 36px 24px 24px;
   pointer-events: none;
+  overflow: auto;
 }
 
 .workspace-action-popup,
 .workspace-floating-window {
   pointer-events: auto;
   width: min(420px, calc(100vw - 96px));
-  max-height: min(100%, calc(100vh - 160px));
+  max-height: min(100%, calc(100svh - 132px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0;
   padding: 20px;
   border: 1px solid rgba(148, 163, 184, 0.12);
@@ -3439,12 +3457,32 @@ button:active:not(:disabled),
 }
 
 @media (max-width: 1280px) {
-  .projects-workspace {
-    grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
-    gap: 16px;
+  .dashboard-body {
+    grid-template-columns: 208px minmax(0, 1fr) 248px;
+    gap: 18px;
   }
 
-  .project-panel {
+  .dashboard-workspace-stack.has-context-surface {
+    grid-template-rows: minmax(300px, auto) minmax(320px, 1fr);
+  }
+
+  .recent-work-panel {
+    max-height: calc(100svh - 32px);
+  }
+
+  .organizations-workspace,
+  .projects-workspace {
+    grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .notes-workspace {
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .project-panel,
+  .note-panel {
     padding: 18px;
   }
 
@@ -3455,6 +3493,13 @@ button:active:not(:disabled),
   .project-surface-tabs {
     gap: 6px;
     width: 100%;
+  }
+
+  .workspace-action-popup,
+  .workspace-floating-window,
+  .workspace-action-popup-compact,
+  .workspace-action-popup-wide {
+    width: min(520px, calc(100vw - 72px));
   }
 }
 
@@ -3503,7 +3548,7 @@ button:active:not(:disabled),
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
-  height: min(100%, 840px);
+  height: 100%;
   overflow: hidden;
 }
 
@@ -3555,6 +3600,7 @@ button:active:not(:disabled),
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 .notes-collection-controls {
@@ -3579,6 +3625,7 @@ button:active:not(:disabled),
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 4px;
 }
 
@@ -4050,6 +4097,16 @@ button:active:not(:disabled),
   .notes-filter-grid {
     grid-template-columns: 1fr;
   }
+
+  .organization-project-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .organization-project-row-note {
+    max-width: none;
+    text-align: left;
+  }
 }
 
 .dashboard-context-panel {
@@ -4416,7 +4473,22 @@ button:active:not(:disabled),
   }
 
   .dashboard-workspace-stack.has-context-surface {
-    grid-template-rows: minmax(360px, auto) minmax(360px, auto);
+    grid-template-rows: minmax(280px, auto) minmax(320px, 1fr);
+  }
+
+  .organizations-workspace {
+    grid-template-columns: minmax(248px, 300px) minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .workspace-floating-window-shell {
+    padding: 20px 16px 16px;
+  }
+
+  .workspace-action-popup,
+  .workspace-floating-window {
+    width: min(480px, calc(100vw - 40px));
+    max-height: min(100%, calc(100svh - 72px));
   }
 }
 
