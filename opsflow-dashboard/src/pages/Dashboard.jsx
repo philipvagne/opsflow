@@ -857,25 +857,23 @@ export default function Dashboard({ token, onLogout }) {
       return null;
     };
 
-    return (
-      <div className="workspace-card-shell">
-        <div className="workspace-card-header">
-          <div>
-            <div className="dashboard-eyebrow">Workspace</div>
+      return (
+        <div className="workspace-card-shell">
+          <div className="workspace-card-header">
             <h2>{workspaceTitle}</h2>
+
+            <button
+              type="button"
+              className="task-detail-close workspace-shell-close"
+              onClick={closeContextPanel}
+              aria-label={`Close ${workspaceTitle}`}
+            >
+              X
+            </button>
           </div>
 
-          <button
-            type="button"
-            className="task-detail-close"
-            onClick={closeContextPanel}
-          >
-            Close
-          </button>
+          {renderWorkspaceCardBody()}
         </div>
-
-        {renderWorkspaceCardBody()}
-      </div>
     );
   };
 
