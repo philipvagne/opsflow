@@ -1952,6 +1952,12 @@ button:active:not(:disabled),
   overflow: hidden;
 }
 
+.organization-detail-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .organization-collection-body {
   display: flex;
   flex: 1;
@@ -2061,10 +2067,11 @@ button:active:not(:disabled),
 }
 
 .organization-detail-content {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
+  padding-right: 2px;
 }
 
 .organization-detail-panel .project-opened-strip {
@@ -2138,22 +2145,33 @@ button:active:not(:disabled),
   box-shadow: inset 0 -2px 0 rgba(99, 102, 241, 0.72);
 }
 
-.organization-detail-panel .project-detail-content {
-  padding-right: 2px;
-}
-
 .organization-detail-panel .project-surface-section,
 .organization-detail-panel .organization-overview-surface {
   padding: 2px 2px 2px;
 }
 
+.organization-detail-content > .project-surface-section,
+.organization-detail-content > .organization-overview-surface,
+.organization-detail-content > .organization-foundation-surface {
+  min-height: 0;
+}
+
 .organization-overview-surface,
 .organization-foundation-surface {
-  min-height: 100%;
+  min-height: 0;
 }
 
 .organization-overview-surface {
+  flex: 1;
   gap: 18px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.organization-foundation-surface {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .organization-overview-summary {
@@ -2214,6 +2232,8 @@ button:active:not(:disabled),
 
 .organization-members-surface {
   gap: 14px;
+  flex: 1;
+  min-height: 0;
 }
 
 .organization-members-toolbar {
@@ -2253,10 +2273,10 @@ button:active:not(:disabled),
 
 .organization-members-registry-head {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(128px, 0.65fr) 116px 40px;
+  grid-template-columns: minmax(0, 2.8fr) minmax(136px, 0.8fr) 132px 36px;
   align-items: center;
-  gap: 18px;
-  padding: 2px 18px 8px;
+  gap: 24px;
+  padding: 2px 22px 10px;
   color: rgba(100, 116, 139, 0.76);
   font-size: 10px;
   font-weight: 700;
@@ -2264,22 +2284,37 @@ button:active:not(:disabled),
   text-transform: uppercase;
 }
 
-.organization-members-surface .project-members-list {
-  gap: 8px;
+.organization-members-list-shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
 }
 
-.organization-members-surface .project-members-list-shell {
-  flex: 0 0 auto;
-  overflow: visible;
-  padding-right: 0;
+.organization-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .organization-member-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(128px, 0.65fr) 116px 40px;
+  grid-template-columns: minmax(0, 2.8fr) minmax(136px, 0.8fr) 132px 36px;
   align-items: center;
-  gap: 18px;
-  padding: 18px 18px;
+  gap: 24px;
+  padding: 18px 22px;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.24)),
+    rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 10px 18px rgba(15, 23, 42, 0.016);
 }
 
 .organization-member-primary {
@@ -2297,28 +2332,36 @@ button:active:not(:disabled),
 }
 
 .organization-member-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
 
 .organization-member-copy strong {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: var(--line-tight);
 }
 
 .organization-member-copy span {
   font-size: 12px;
   color: rgba(100, 116, 139, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organization-member-meta {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0;
   min-width: 0;
 }
 
 .organization-member-role-cell {
-  justify-content: flex-start;
+  min-width: 0;
 }
 
 .organization-member-role {
@@ -2344,6 +2387,7 @@ button:active:not(:disabled),
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .organization-member-action-menu {
@@ -2355,13 +2399,16 @@ button:active:not(:disabled),
 }
 
 .organization-projects-surface {
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
   gap: 18px;
 }
 
 .organization-project-list-shell {
+  flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
 }
 

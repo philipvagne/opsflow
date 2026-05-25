@@ -319,6 +319,30 @@ export default function OrganizationsWorkspace({
       overdueProjectCount,
     };
   }, [projects]);
+  const organizationsNeedingSummaryHydration = useMemo(
+    () =>
+      organizations.filter((organization) => {
+        const hasMemberCount =
+          organization.memberCount !== undefined &&
+          organization.memberCount !== null;
+        const hasProjectCount =
+          organization.projectCount !== undefined &&
+          organization.projectCount !== null;
+        const hasMemberPreview =
+          getOrganizationPreviewMembers(organization).length > 0;
+
+        return !hasMemberCount || !hasProjectCount || !hasMemberPreview;
+      }),
+    [organizations]
+  );
+  const organizationSummaryHydrationKey = useMemo(
+    () =>
+      organizationsNeedingSummaryHydration
+        .map((organization) => organization.id)
+        .sort()
+        .join("|"),
+    [organizationsNeedingSummaryHydration]
+  );
 
   useEffect(() => {
     if (!selectedOrganization) {
@@ -394,6 +418,85 @@ export default function OrganizationsWorkspace({
   }, [setSelectedOrgId, token]);
 
   useEffect(() => {
+    if (!token || organizationsNeedingSummaryHydration.length === 0) {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const hydrateOrganizationSummaries = async () => {
+      const results = await Promise.allSettled(
+        organizationsNeedingSummaryHydration.map(async (organization) => {
+          const [membersRes, projectsRes] = await Promise.all([
+            getOrganizationMembers(token, organization.id),
+            getOrganizationProjects(token, organization.id),
+          ]);
+
+          const hydratedMembers = membersRes.data || [];
+          const hydratedProjects = projectsRes.data || [];
+
+          return {
+            id: organization.id,
+            memberCount: hydratedMembers.length,
+            projectCount: hydratedProjects.length,
+            memberPreview: hydratedMembers
+              .slice(0, 4)
+              .map((membership) => membership?.user || membership)
+              .filter(Boolean),
+          };
+        })
+      );
+
+      if (!isMounted) {
+        return;
+      }
+
+      const hydratedSummaries = results
+        .filter((result) => result.status === "fulfilled")
+        .map((result) => result.value);
+
+      if (hydratedSummaries.length === 0) {
+        return;
+      }
+
+      setMemberCountsByOrgId((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          hydratedSummaries.map((summary) => [summary.id, summary.memberCount])
+        ),
+      }));
+      setProjectCountsByOrgId((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          hydratedSummaries.map((summary) => [summary.id, summary.projectCount])
+        ),
+      }));
+      setOrganizations((current) =>
+        current.map((organization) => {
+          const hydratedSummary = hydratedSummaries.find(
+            (summary) => summary.id === organization.id
+          );
+
+          return hydratedSummary
+            ? {
+                ...organization,
+                memberCount: hydratedSummary.memberCount,
+                projectCount: hydratedSummary.projectCount,
+                memberPreview: hydratedSummary.memberPreview,
+              }
+            : organization;
+        })
+      );
+    };
+
+    hydrateOrganizationSummaries();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [organizationSummaryHydrationKey, organizationsNeedingSummaryHydration, token]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadMembers = async () => {
@@ -418,6 +521,20 @@ export default function OrganizationsWorkspace({
           ...current,
           [selectedOrgId]: nextMembers.length,
         }));
+        setOrganizations((current) =>
+          current.map((organization) =>
+            organization.id === selectedOrgId
+              ? {
+                  ...organization,
+                  memberCount: nextMembers.length,
+                  memberPreview: nextMembers
+                    .slice(0, 4)
+                    .map((membership) => membership?.user || membership)
+                    .filter(Boolean),
+                }
+              : organization
+          )
+        );
       } catch (err) {
         if (!isMounted) return;
         setMembers([]);
@@ -500,6 +617,16 @@ export default function OrganizationsWorkspace({
           ...current,
           [selectedOrgId]: nextProjects.length,
         }));
+        setOrganizations((current) =>
+          current.map((organization) =>
+            organization.id === selectedOrgId
+              ? {
+                  ...organization,
+                  projectCount: nextProjects.length,
+                }
+              : organization
+          )
+        );
       } catch (err) {
         if (!isMounted) return;
         setProjects([]);
@@ -846,7 +973,7 @@ export default function OrganizationsWorkspace({
         </div>
       </section>
 
-      <section className="project-panel organization-detail-panel">
+      <section className="project-panel project-detail-panel organization-detail-panel">
         {selectedOrganization ? (
           <>
             <div className="project-opened-strip">
@@ -1047,16 +1174,16 @@ export default function OrganizationsWorkspace({
                       No team members match the current search or role filter.
                       </div>
                     ) : (
-                    <div className="project-members-list-shell">
+                    <div className="organization-members-list-shell">
                       <div className="organization-members-registry-head" aria-hidden="true">
                         <span>Member</span>
                         <span>Role</span>
                         <span>Joined</span>
                         <span />
                       </div>
-                      <div className="project-members-list">
+                      <div className="organization-members-list">
                         {filteredMembers.map((membership) => (
-                          <div key={membership.id} className="project-member-row organization-member-row">
+                          <div key={membership.id} className="organization-member-row">
                             <div className="organization-member-primary">
                               <span className="project-member-avatar project-member-avatar-large organization-member-avatar-large">
                                 {getOrganizationInitials({
