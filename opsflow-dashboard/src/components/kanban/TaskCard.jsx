@@ -1,5 +1,77 @@
 import { useDraggable } from "@dnd-kit/core";
 
+export function TaskCardPreview({ task }) {
+  const priorityColors = {
+    LOW: "#16a34a",
+    MEDIUM: "#f59e0b",
+    HIGH: "#ef4444",
+    DEFAULT: "rgba(125, 120, 153, 0.4)",
+  };
+  const rawPriority =
+    task.priority ??
+    task.priorityLevel ??
+    task.priority_label ??
+    task.priorityLabel ??
+    "";
+  const normalizedPriority = String(rawPriority).trim().toUpperCase();
+  const priorityStripeColor =
+    priorityColors[normalizedPriority] || priorityColors.DEFAULT;
+  const assigneeCount = task.assignments?.length || 0;
+
+  return (
+    <div
+      className="task-card task-card-drag-overlay"
+      style={{
+        borderLeft: `4px solid ${priorityStripeColor}`,
+      }}
+    >
+      <div className="task-card-header">
+        <div className="task-card-title">{task.title}</div>
+        <span className="task-card-corner-slot" aria-hidden="true" />
+      </div>
+
+      {task.assignments?.length > 0 ? (
+        <div className="task-card-footer">
+          <div className="avatar-stack">
+            {task.assignments.map((assignment, index) => {
+              const name =
+                assignment.user?.fullName ||
+                assignment.user?.email ||
+                "U";
+
+              const initials = name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+
+              return (
+                <div
+                  key={assignment.id}
+                  className="user-avatar"
+                  title={name}
+                  style={{
+                    marginLeft: index === 0 ? "0" : "-7px",
+                  }}
+                >
+                  {initials}
+                </div>
+              );
+            })}
+          </div>
+
+          {assigneeCount > 2 ? (
+            <span className="task-card-meta-text">
+              {assigneeCount} assignees
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function TaskCard({ task, onClick }) {
   const {
     attributes,
@@ -14,11 +86,21 @@ export default function TaskCard({ task, onClick }) {
     },
   });
 
-  const statusColors = {
-    TODO: "#f59e0b",
-    IN_PROGRESS: "#3b82f6",
-    DONE: "#10b981",
+  const priorityColors = {
+    LOW: "#16a34a",
+    MEDIUM: "#f59e0b",
+    HIGH: "#ef4444",
+    DEFAULT: "#602dfe",
   };
+  const rawPriority =
+    task.priority ??
+    task.priorityLevel ??
+    task.priority_label ??
+    task.priorityLabel ??
+    "";
+  const normalizedPriority = String(rawPriority).trim().toUpperCase();
+  const priorityStripeColor =
+    priorityColors[normalizedPriority] || priorityColors.DEFAULT;
   const hasDueDate = Boolean(task.dueDate);
   const unreadNoteCount = task.unreadNoteCount || 0;
   const isOverdue =
@@ -33,12 +115,16 @@ export default function TaskCard({ task, onClick }) {
       ref={setNodeRef}
       className="task-card"
       onClick={() => onClick(task)}
+      {...attributes}
+      {...listeners}
       style={{
-        borderLeft: `4px solid ${statusColors[task.status] || "#ccc"}`,
+        borderLeft: `2px solid ${priorityStripeColor}`,
         transform: transform
           ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
           : undefined,
-        opacity: isDragging ? 0.7 : 1,
+        opacity: isDragging ? 0.22 : 1,
+        position: "relative",
+        zIndex: isDragging ? 30 : 1,
       }}
     >
       <div className="task-card-header">
@@ -46,16 +132,7 @@ export default function TaskCard({ task, onClick }) {
           {task.title}
         </div>
 
-        <button
-          type="button"
-          className="task-drag-handle"
-          aria-label={`Drag ${task.title}`}
-          onClick={(event) => event.stopPropagation()}
-          {...attributes}
-          {...listeners}
-        >
-          ::
-        </button>
+        <span className="task-card-corner-slot" aria-hidden="true" />
       </div>
 
       {hasDueDate && (

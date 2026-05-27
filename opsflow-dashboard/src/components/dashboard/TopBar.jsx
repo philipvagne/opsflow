@@ -5,9 +5,9 @@ export default function TopBar({
   return (
     <header className="dashboard-topbar">
       <div className="topbar-brand-group">
-        <div className="topbar-brand" aria-label="OpsFlow">
-          <span className="topbar-brand-ops">Ops</span>
-          <span className="topbar-brand-flow">Flow</span>
+        <div className="topbar-brand brand-wordmark" aria-label="Zorune">
+          <span className="brand-wordmark-anchor">Zo</span>
+          <span className="brand-wordmark-gradient">rune</span>
         </div>
       </div>
 

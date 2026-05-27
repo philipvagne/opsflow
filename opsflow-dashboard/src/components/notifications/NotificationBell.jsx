@@ -93,7 +93,7 @@ export default function NotificationBell({
     <div className="notification-shell">
       {showTrigger ? (
         <button
-          className="ui-button ui-button-secondary notification-trigger"
+          className="dashboard-topbar-action-button notification-trigger"
           data-count={unreadCount > 0 ? unreadCount : ""}
           aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
           title="Notifications"

@@ -8,10 +8,10 @@ function getInitials(value) {
 }
 
 const primaryNavItems = [
-  { id: "organizations", label: "Teams" },
-  { id: "projects", label: "Projects" },
-  { id: "profile", label: "Profile" },
-  { id: "settings", label: "Settings" },
+  { id: "organizations", label: "Teams", icon: "teams" },
+  { id: "projects", label: "Projects", icon: "projects" },
+  { id: "profile", label: "Profile", icon: "profile" },
+  { id: "settings", label: "Settings", icon: "settings" },
 ];
 
 export default function LeftRail({
@@ -25,15 +25,6 @@ export default function LeftRail({
       <section className="left-rail-today-card">
         <div className="left-rail-card-header">
           <h2>Today</h2>
-          <button
-            type="button"
-            className="left-rail-summary-trigger"
-            onClick={() => onViewChange?.("tasks")}
-            aria-label="Open tasks dashboard"
-            title="Open tasks dashboard"
-          >
-            <span aria-hidden="true" />
-          </button>
         </div>
 
         <div className="left-rail-summary-list">
@@ -67,7 +58,10 @@ export default function LeftRail({
               className={isActive ? "left-rail-nav-item active" : "left-rail-nav-item"}
               onClick={() => onViewChange?.(item.id)}
             >
-              <span className="left-rail-nav-icon" aria-hidden="true" />
+              <span
+                className={`left-rail-nav-icon left-rail-nav-icon-${item.icon}`}
+                aria-hidden="true"
+              />
               <span>{item.label}</span>
             </button>
           );
@@ -89,7 +83,7 @@ export default function LeftRail({
           aria-label="Open profile"
           title="Open profile"
         >
-          <span aria-hidden="true">⌄</span>
+          <span aria-hidden="true" className="left-rail-profile-chevron" />
         </button>
       </section>
     </aside>

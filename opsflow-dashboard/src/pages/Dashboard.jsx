@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
@@ -15,6 +16,7 @@ import useTasks from "../hooks/useTasks";
 import usePersistentState from "../hooks/usePersistentState";
 import NotificationBell from "../components/notifications/NotificationBell";
 import KanbanColumn from "../components/kanban/KanbanColumn";
+import { TaskCardPreview } from "../components/kanban/TaskCard";
 import TaskModal from "../components/tasks/TaskModal";
 import CreateTaskPanel from "../components/tasks/CreateTaskPanel";
 import TaskTable from "../components/tasks/TaskTable";
@@ -96,6 +98,7 @@ function persistWorkspaceValue(key, value) {
 export default function Dashboard({ token, onLogout }) {
   const [notifications, setNotifications] = useState([]);
   const [openNotifications, setOpenNotifications] = useState(false);
+  const [activeDraggedTaskId, setActiveDraggedTaskId] = useState(null);
   const [selectedTaskId, setSelectedTaskId] = usePersistentState(
     "opsflow.selectedTaskId",
     null
@@ -157,6 +160,8 @@ export default function Dashboard({ token, onLogout }) {
 
   const selectedTask =
     tasks.find((task) => task.id === selectedTaskId) || null;
+  const activeDraggedTask =
+    tasks.find((task) => task.id === activeDraggedTaskId) || null;
   const selectedTaskViewers = selectedTaskId
     ? taskViewersByTask[selectedTaskId] || []
     : [];
@@ -332,8 +337,14 @@ export default function Dashboard({ token, onLogout }) {
     return createdTask;
   };
 
+  const handleTaskDragStart = (event) => {
+    setActiveDraggedTaskId(event.active?.id || null);
+  };
+
   const handleTaskDragEnd = async (event) => {
     const { active, over } = event;
+
+    setActiveDraggedTaskId(null);
 
     if (!over) {
       return;
@@ -348,6 +359,10 @@ export default function Dashboard({ token, onLogout }) {
     }
 
     await updateTaskStatus(taskId, nextStatus);
+  };
+
+  const handleTaskDragCancel = () => {
+    setActiveDraggedTaskId(null);
   };
 
   const workspaceMeta = {
@@ -613,15 +628,10 @@ export default function Dashboard({ token, onLogout }) {
     const assignedToYouCount = currentUserId
       ? activeTasks.filter((task) => isTaskAssignedTo(task, currentUserId)).length
       : 0;
-    const updatesAwaitingCount = activeTasks.filter(
-      (task) => (task.unreadNoteCount || 0) > 0 || task.hasUnreadNotes
-    ).length;
-
     return [
       { id: "today", label: "Tasks due today", value: dueTodayCount, tone: "tone-violet" },
       { id: "overdue", label: "Overdue tasks", value: overdueCount, tone: "tone-amber" },
-      { id: "assigned", label: "Assigned to you", value: assignedToYouCount, tone: "tone-rose" },
-      { id: "updates", label: "Updates awaiting you", value: updatesAwaitingCount, tone: "tone-sky" },
+      { id: "assigned", label: "High priority assigned", value: assignedToYouCount, tone: "tone-rose" },
     ];
   }, [activeTasks, currentUserId]);
   const currentUserProfile = useMemo(() => {
@@ -759,7 +769,9 @@ export default function Dashboard({ token, onLogout }) {
       return (
         <DndContext
           sensors={sensors}
+          onDragStart={handleTaskDragStart}
           onDragEnd={handleTaskDragEnd}
+          onDragCancel={handleTaskDragCancel}
         >
           <div className="kanban-board">
             <KanbanColumn
@@ -783,6 +795,11 @@ export default function Dashboard({ token, onLogout }) {
               setSelectedTask={selectTask}
             />
           </div>
+          <DragOverlay zIndex={1000}>
+            {activeDraggedTask ? (
+              <TaskCardPreview task={activeDraggedTask} />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       );
     }
@@ -1185,8 +1202,8 @@ return (
                   type="button"
                   className={
                     recentWorkOpen
-                      ? "shortcut-hint recent-work-button active"
-                      : "shortcut-hint recent-work-button"
+                      ? "dashboard-topbar-action-button recent-work-button active"
+                      : "dashboard-topbar-action-button recent-work-button"
                   }
                   onClick={(event) => {
                     event.stopPropagation();
@@ -1206,7 +1223,12 @@ return (
                 deleteNotification={deleteNotification}
                 showPanel={false}
               />
-              <button className="logout-button" onClick={onLogout} title="Logout" aria-label="Logout">
+              <button
+                className="dashboard-topbar-action-button logout-button"
+                onClick={onLogout}
+                title="Logout"
+                aria-label="Logout"
+              >
                 Logout
               </button>
             </>

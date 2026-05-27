@@ -28,19 +28,21 @@ export default function KanbanColumn({
         </span>
       </div>
 
-      {tasks.length === 0 ? (
-        <div className="kanban-empty">
-          No tasks here
-        </div>
-      ) : (
-        tasks.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onClick={setSelectedTask}
-          />
-        ))
-      )}
+      <div className="kanban-column-list">
+        {tasks.length === 0 ? (
+          <div className="kanban-empty">
+            No tasks here
+          </div>
+        ) : (
+          tasks.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onClick={setSelectedTask}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
