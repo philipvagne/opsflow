@@ -35,12 +35,13 @@ export default function LeftRail({
               className="left-rail-summary-item"
               onClick={() => onViewChange?.("tasks")}
             >
-              <span className={`left-rail-summary-count ${item.tone || ""}`}>
-                {item.value}
-              </span>
-              <span className="left-rail-summary-label">{item.label}</span>
-              <span className="left-rail-summary-arrow" aria-hidden="true">
-                ›
+              <span
+                className={`left-rail-summary-dot ${item.tone || ""}`}
+                aria-hidden="true"
+              />
+              <span className="left-rail-summary-label">
+                <span className="left-rail-summary-value">{item.value}</span>{" "}
+                {item.label}
               </span>
             </button>
           ))}
