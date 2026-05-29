@@ -33,6 +33,18 @@ const getOrganizationInitials = (organization) => {
   return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 };
 
+const getIdentityInitials = (value) => {
+  if (!value) {
+    return "?";
+  }
+
+  if (typeof value === "string") {
+    return getOrganizationInitials({ name: value });
+  }
+
+  return getOrganizationInitials({ name: displayUserName(value) });
+};
+
 const getOrganizationPreviewMembers = (organization, fallbackMembers = []) => {
   const directMembers = Array.isArray(organization?.members)
     ? organization.members
@@ -72,6 +84,26 @@ const formatProjectStatus = (status) => {
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const getProjectPriorityState = (project) => {
+  const rawPriority =
+    project?.priority ??
+    project?.priorityLevel ??
+    project?.priority_label ??
+    project?.priorityLabel ??
+    "";
+  const normalized = String(rawPriority).trim().toUpperCase();
+
+  if (normalized === "HIGH") {
+    return { label: "High", tone: "high" };
+  }
+
+  if (normalized === "MEDIUM") {
+    return { label: "Medium", tone: "medium" };
+  }
+
+  return { label: "Low", tone: "low" };
 };
 
 const formatProjectDueDate = (date) => {
@@ -437,11 +469,18 @@ export default function OrganizationsWorkspace({
     const projectEvents = projects
       .map((project) => {
         const time = project?.updatedAt || project?.createdAt || "";
+        const actor =
+          project?.owner ||
+          project?.assignee ||
+          selectedOrganizationLead ||
+          null;
+
         return time
           ? {
               id: `project-${project.id}`,
-              label: project?.name || "Untitled project",
-              meta: project?.updatedAt ? "Project updated" : "Project created",
+              actorName: actor ? displayUserName(actor) : "Team member",
+              actorInitials: getIdentityInitials(actor || "Team member").slice(0, 1),
+              action: project?.updatedAt ? "updated a project" : "created project",
               time,
             }
           : null;
@@ -454,8 +493,9 @@ export default function OrganizationsWorkspace({
         return time
           ? {
               id: `member-${membership.id}`,
-              label: displayUserName(membership.user),
-              meta: "Member joined",
+              actorName: displayUserName(membership.user),
+              actorInitials: getIdentityInitials(membership.user).slice(0, 1),
+              action: "joined the team",
               time,
             }
           : null;
@@ -465,7 +505,7 @@ export default function OrganizationsWorkspace({
     return [...projectEvents, ...memberEvents]
       .sort((left, right) => new Date(right.time) - new Date(left.time))
       .slice(0, 5);
-  }, [members, projects]);
+  }, [members, projects, selectedOrganizationLead]);
   const organizationSummaryHydrationKey = useMemo(
     () =>
       organizationsNeedingSummaryHydration
@@ -1063,15 +1103,6 @@ export default function OrganizationsWorkspace({
                     organization.projectCount ??
                     projectCountsByOrgId[organization.id] ??
                     null;
-                  const previewMembers = getOrganizationPreviewMembers(
-                    organization,
-                    organization.id === selectedOrgId ? members : []
-                  );
-                  const visiblePreviewMembers = previewMembers.slice(0, 2);
-                  const remainingPreviewCount = Math.max(
-                    0,
-                    (memberCount ?? previewMembers.length) - visiblePreviewMembers.length
-                  );
                   const metadataCopy = [
                     projectCount !== null
                       ? `${projectCount} project${projectCount === 1 ? "" : "s"}`
@@ -1106,27 +1137,6 @@ export default function OrganizationsWorkspace({
                                 <span>{metadataCopy}</span>
                               </div>
                             ) : null}
-                          </div>
-                        </div>
-                        <div className="organization-card-side">
-                          <div className="organization-card-presence" aria-hidden="true">
-                            <div className="project-member-avatar-stack organization-member-avatar-stack">
-                              {visiblePreviewMembers.map((member, index) => (
-                                <span
-                                  key={`${organization.id}-member-preview-${member.id || member.email || index}`}
-                                  className="project-member-avatar organization-member-avatar"
-                                >
-                                  {getOrganizationInitials({
-                                    name: displayUserName(member),
-                                  })}
-                                </span>
-                              ))}
-                              {remainingPreviewCount > 0 ? (
-                                <span className="project-member-avatar project-member-avatar-more organization-member-avatar">
-                                  +{remainingPreviewCount}
-                                </span>
-                              ) : null}
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1296,14 +1306,23 @@ export default function OrganizationsWorkspace({
                           "This team surface keeps your people, project access, and shared workspace structure in one calmer operational layer."}
                       </p>
                       <div className="organization-overview-meta">
-                        <span>
-                          Team lead{" "}
-                          <strong>
-                            {selectedOrganizationLead
-                              ? displayUserName(selectedOrganizationLead)
-                              : "Not assigned yet"}
-                          </strong>
-                        </span>
+                        <div className="organization-overview-lead">
+                          <span className="organization-overview-lead-avatar">
+                            {getIdentityInitials(
+                              selectedOrganizationLead || "Team lead"
+                            )}
+                          </span>
+                          <div className="organization-overview-lead-copy">
+                            <span className="organization-overview-lead-label">
+                              Team lead
+                            </span>
+                            <strong>
+                              {selectedOrganizationLead
+                                ? displayUserName(selectedOrganizationLead)
+                                : "Not assigned yet"}
+                            </strong>
+                          </div>
+                        </div>
                       </div>
 
                       {canManageSelectedOrganization ? (
@@ -1334,16 +1353,41 @@ export default function OrganizationsWorkspace({
                       ) : null}
                     </section>
 
-                    <section className="organization-overview-block">
+                    <section className="organization-overview-block organization-overview-projects-block">
                       <h5>Active projects</h5>
                       {selectedOrganizationActiveProjects.length > 0 ? (
                         <div className="organization-overview-list">
-                          {selectedOrganizationActiveProjects.map((project) => (
-                            <div key={project.id} className="organization-overview-list-item">
-                              <strong>{project.name}</strong>
-                              <span>{getProjectStatusState(project).label}</span>
-                            </div>
-                          ))}
+                          {selectedOrganizationActiveProjects.map((project) => {
+                            const projectPriority = getProjectPriorityState(project);
+
+                            return (
+                              <div
+                                key={project.id}
+                                className="organization-overview-list-item organization-overview-project-item"
+                              >
+                                <span
+                                  className={`organization-overview-project-avatar ${projectPriority.tone}`}
+                                  aria-hidden="true"
+                                >
+                                  <svg viewBox="0 0 16 16" fill="none">
+                                    <path
+                                      d="M2.75 4.25h3.1l1.05 1.2h6.35v5.95a1.1 1.1 0 0 1-1.1 1.1H3.85a1.1 1.1 0 0 1-1.1-1.1V5.35a1.1 1.1 0 0 1 1.1-1.1Z"
+                                      stroke="currentColor"
+                                      strokeWidth="1.2"
+                                      strokeLinejoin="round"
+                                    />
+                                    <path
+                                      d="M2.75 6h10.5"
+                                      stroke="currentColor"
+                                      strokeWidth="1.2"
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                </span>
+                                <strong>{project.name}</strong>
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="muted-text">
@@ -1352,19 +1396,29 @@ export default function OrganizationsWorkspace({
                       )}
                     </section>
 
-                    <section className="organization-overview-block">
+                    <section className="organization-overview-block organization-overview-activity-block">
                       <h5>Recent activity</h5>
                       {selectedOrganizationRecentActivity.length > 0 ? (
                         <div className="organization-overview-list">
                           {selectedOrganizationRecentActivity.map((activity) => (
-                            <div key={activity.id} className="organization-overview-list-item">
-                              <strong>{activity.label}</strong>
-                              <span>
-                                {activity.meta}
-                                {formatRelativeActivityTime(activity.time)
-                                  ? ` · ${formatRelativeActivityTime(activity.time)}`
-                                  : ""}
-                              </span>
+                            <div
+                              key={activity.id}
+                              className="organization-overview-list-item organization-overview-activity-item"
+                            >
+                              <div className="organization-overview-activity-main">
+                                <span className="organization-overview-activity-avatar">
+                                  {activity.actorInitials}
+                                </span>
+                                <div className="organization-overview-activity-copy">
+                                  <strong>{activity.actorName}</strong>
+                                  <span>{activity.action}</span>
+                                </div>
+                              </div>
+                              {formatRelativeActivityTime(activity.time) ? (
+                                <span className="organization-overview-activity-time">
+                                  {formatRelativeActivityTime(activity.time)}
+                                </span>
+                              ) : null}
                             </div>
                           ))}
                         </div>
